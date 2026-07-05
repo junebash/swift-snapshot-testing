@@ -565,6 +565,20 @@ public func verifySnapshot<Value, Format>(
   #endif
 
   let record = record ?? SnapshotTestingConfiguration.current?.record ?? _record
+
+  // Start the snapshot operation before the first suspension point. Strategies that produce
+  // their value synchronously (like image snapshots of views that have already rendered)
+  // capture the value here, in the same run-loop iteration as the caller — the same semantics
+  // as the synchronous overload. Suspending first would let the main run loop turn (committing
+  // CoreAnimation transactions, firing timers, and draining queued main-queue work) before the
+  // value is captured, changing what gets snapshotted.
+  let snapshot: EagerSnapshot<Format>
+  do {
+    snapshot = EagerSnapshot(snapshotting.snapshot(try value()))
+  } catch {
+    return error.localizedDescription
+  }
+
   return await withSnapshotTesting(record: record) { () async -> String? in
     do {
       let paths = try snapshotFilePaths(
@@ -575,8 +589,7 @@ public func verifySnapshot<Value, Format>(
         testName: testName
       )
 
-      guard
-        let diffable = await takeSnapshot(snapshotting.snapshot(try value()), timeout: timeout)
+      guard let diffable = await snapshot.value(timeout: timeout)
       else {
         return timeoutFailureMessage(timeout: timeout)
       }
@@ -600,24 +613,66 @@ public func verifySnapshot<Value, Format>(
 
 // MARK: - Private
 
-/// Starts the given snapshot operation on the main actor and suspends until it produces a value.
+/// Runs a snapshot operation as soon as it is initialized and supports awaiting its value later.
+///
+/// Initializing this class starts the operation synchronously, so a strategy that produces its
+/// value without waiting (like an image snapshot of an already-rendered view) completes before
+/// the initializer returns, and awaiting ``value(timeout:)`` returns it without suspending.
 ///
 /// The timeout is enforced by a timer on a background queue so that snapshot work occupying the
-/// main thread cannot delay the timeout indefinitely.
-@MainActor
-private func takeSnapshot<Format>(
-  _ snapshot: Async<Format>,
-  timeout: TimeInterval
-) async -> Format? {
-  let onceGuard = OnceGuard()
-  return await withCheckedContinuation { continuation in
+/// main thread cannot delay the timeout indefinitely. If the timeout fires first,
+/// ``value(timeout:)`` returns `nil` and a subsequently produced value is discarded.
+private final class EagerSnapshot<Format>: @unchecked Sendable {
+  private let lock = NSLock()
+  private var state = State.inFlight
+
+  private enum State {
+    case inFlight
+    case awaited(CheckedContinuation<Format?, Never>)
+    case settled(Format?)
+  }
+
+  init(_ snapshot: Async<Format>) {
     snapshot.run { value in
-      guard onceGuard.claim() else { return }
-      continuation.resume(returning: value)
+      self.settle(with: value)
     }
-    DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-      guard onceGuard.claim() else { return }
-      continuation.resume(returning: nil)
+  }
+
+  func value(timeout: TimeInterval) async -> Format? {
+    await withCheckedContinuation { continuation in
+      let settled: Format??
+      lock.lock()
+      switch state {
+      case .inFlight:
+        state = .awaited(continuation)
+        settled = nil
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+          self.settle(with: nil)
+        }
+      case .awaited:
+        fatalError("An EagerSnapshot's value may only be awaited once")
+      case .settled(let value):
+        settled = .some(value)
+      }
+      lock.unlock()
+      if case .some(let value) = settled {
+        continuation.resume(returning: value)
+      }
+    }
+  }
+
+  private func settle(with value: Format?) {
+    lock.lock()
+    switch state {
+    case .inFlight:
+      state = .settled(value)
+      lock.unlock()
+    case .awaited(let continuation):
+      state = .settled(value)
+      lock.unlock()
+      continuation.resume(returning: value)
+    case .settled:
+      lock.unlock()
     }
   }
 }
