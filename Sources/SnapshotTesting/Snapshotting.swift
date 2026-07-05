@@ -46,6 +46,26 @@ public struct Snapshotting<Value, Format> {
     }
   }
 
+  /// Creates a snapshot strategy from an `async` transform function.
+  ///
+  /// Snapshots produced by strategies created with this initializer can be asserted against
+  /// without blocking the current thread by using the `async` overload of `assertSnapshot`.
+  ///
+  /// - Parameters:
+  ///   - pathExtension: The path extension applied to references saved to disk.
+  ///   - diffing: How to diff and convert the snapshot format to and from data.
+  ///   - snapshot: An asynchronous transform function from a value into a diffable snapshot
+  ///     format.
+  public init(
+    pathExtension: String?,
+    diffing: Diffing<Format>,
+    snapshot: @escaping (_ value: Value) async -> Format
+  ) {
+    self.init(pathExtension: pathExtension, diffing: diffing) { value in
+      Async(operation: { await snapshot(value) })
+    }
+  }
+
   /// Transforms a strategy on `Value`s into a strategy on `NewValue`s through a function
   /// `(NewValue) -> Value`.
   ///
@@ -78,6 +98,23 @@ public struct Snapshotting<Value, Format> {
     -> Snapshotting<NewValue, Format>
   {
     self.asyncPullback { newValue in Async(value: transform(newValue)) }
+  }
+
+  /// Transforms a strategy on `Value`s into a strategy on `NewValue`s through an `async` function
+  /// `(NewValue) async -> Value`.
+  ///
+  /// See the documentation of `pullback` for a full description of how pullbacks work. This
+  /// operation differs from `pullback` in that it allows you to use a transformation that performs
+  /// its work asynchronously using Swift concurrency.
+  ///
+  /// - Parameters:
+  ///   - transform: An asynchronous transform function from `NewValue` into `Value`.
+  public func pullback<NewValue>(
+    _ transform: @escaping (_ otherValue: NewValue) async -> Value
+  ) -> Snapshotting<NewValue, Format> {
+    self.asyncPullback { newValue in
+      Async(operation: { await transform(newValue) })
+    }
   }
 
   /// Transforms a strategy on `Value`s into a strategy on `NewValue`s through a function
