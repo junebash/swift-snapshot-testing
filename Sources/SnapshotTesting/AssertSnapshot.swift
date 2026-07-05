@@ -11,6 +11,10 @@ import XCTest
   import Testing
 #endif
 
+#if canImport(QuartzCore)
+  import QuartzCore
+#endif
+
 /// Enhances failure messages with a command line diff tool expression that can be copied and pasted
 /// into a terminal.
 @available(
@@ -310,7 +314,7 @@ public func assertSnapshots<Value, Format>(
   }
 
   for (name, strategy, snapshot) in snapshots {
-    let failure = await verifySnapshot(
+    var failure = await verifySnapshot(
       eager: snapshot,
       as: strategy,
       named: name,
@@ -323,6 +327,14 @@ public func assertSnapshots<Value, Format>(
       line: line,
       column: column
     )
+    if failure == nil {
+      failure = await settledSnapshotFailure(
+        after: snapshot,
+        as: strategy,
+        value: value,
+        timeout: timeout
+      )
+    }
     guard let message = failure else { continue }
     recordIssue(
       message,
@@ -429,7 +441,7 @@ public func assertSnapshots<Value, Format>(
   }
 
   for (strategy, snapshot) in snapshots {
-    let failure = await verifySnapshot(
+    var failure = await verifySnapshot(
       eager: snapshot,
       as: strategy,
       named: nil,
@@ -442,6 +454,14 @@ public func assertSnapshots<Value, Format>(
       line: line,
       column: column
     )
+    if failure == nil {
+      failure = await settledSnapshotFailure(
+        after: snapshot,
+        as: strategy,
+        value: value,
+        timeout: timeout
+      )
+    }
     guard let message = failure else { continue }
     recordIssue(
       message,
@@ -636,7 +656,7 @@ public func verifySnapshot<Value, Format>(
     return error.localizedDescription
   }
 
-  return await verifySnapshot(
+  if let failure = await verifySnapshot(
     eager: snapshot,
     as: snapshotting,
     named: name,
@@ -648,6 +668,15 @@ public func verifySnapshot<Value, Format>(
     testName: testName,
     line: line,
     column: column
+  ) {
+    return failure
+  }
+
+  return await settledSnapshotFailure(
+    after: snapshot,
+    as: snapshotting,
+    value: value,
+    timeout: timeout
   )
 }
 
@@ -739,6 +768,14 @@ private final class EagerSnapshot<Format>: @unchecked Sendable {
     }
   }
 
+  /// The value the operation produced, if it has already been produced.
+  var settledValue: Format? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard case .settled(let value) = state else { return nil }
+    return value
+  }
+
   func value(timeout: TimeInterval) async -> Format? {
     await withCheckedContinuation { continuation in
       let settled: Format??
@@ -776,6 +813,73 @@ private final class EagerSnapshot<Format>: @unchecked Sendable {
       lock.unlock()
     }
   }
+}
+
+/// Whether every async snapshot assertion should verify that the asserted-on value was settled.
+///
+/// Set the `SNAPSHOT_TESTING_REQUIRE_SETTLED` environment variable to `1` to opt in: after an
+/// assertion passes, the value is captured a second time following one CoreAnimation commit, and
+/// the assertion fails if the two captures differ. A difference means the value was still
+/// mutating when it was asserted on — pending main-queue work, in-flight animations or timers,
+/// or asynchronous rendering — so the passing snapshot was a picture of an unsettled
+/// intermediate state. Only the async assertion overloads perform this check.
+private var requireSettledSnapshots: Bool {
+  requireSettledSnapshotsOverride
+    ?? (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_REQUIRE_SETTLED"] == "1")
+}
+
+/// Test hook: overrides the `SNAPSHOT_TESTING_REQUIRE_SETTLED` environment variable.
+var requireSettledSnapshotsOverride: Bool?
+
+/// Re-captures an already-asserted value after one CoreAnimation commit and returns a failure
+/// message if the second capture differs from the first, or `nil` if the value was settled.
+///
+/// Returns `nil` without checking when ``requireSettledSnapshots`` is off, when the first
+/// capture never produced a value, or when the second capture cannot be produced — those
+/// conditions are reported by the primary assertion, not this check.
+@MainActor
+private func settledSnapshotFailure<Value, Format>(
+  after first: EagerSnapshot<Format>,
+  as snapshotting: Snapshotting<Value, Format>,
+  value: () throws -> Value,
+  timeout: TimeInterval
+) async -> String? {
+  guard requireSettledSnapshots, let firstValue = first.settledValue else { return nil }
+
+  await waitForOneCommit()
+
+  let second: EagerSnapshot<Format>
+  do {
+    second = EagerSnapshot(snapshotting.snapshot(try value()))
+  } catch {
+    return nil
+  }
+  guard let secondValue = await second.value(timeout: timeout) else { return nil }
+  guard let (message, _) = snapshotting.diffing.diffV2(firstValue, secondValue) else { return nil }
+  return """
+    Value was not settled at assertion time: capturing it again after one CoreAnimation commit \
+    produced a different snapshot. Drive the value to a settled, deterministic state before \
+    asserting on it — pending main-queue work, in-flight animations or timers, and asynchronous \
+    rendering all mean the assertion is a picture of an intermediate state.
+
+    \(message)
+    """
+}
+
+/// Suspends until the main run loop has turned and one CoreAnimation commit has completed.
+@MainActor
+private func waitForOneCommit() async {
+  #if canImport(QuartzCore) && !os(watchOS)
+    await withCheckedContinuation { continuation in
+      CATransaction.begin()
+      CATransaction.setCompletionBlock { continuation.resume() }
+      CATransaction.commit()
+    }
+  #else
+    await withCheckedContinuation { continuation in
+      DispatchQueue.main.async { continuation.resume() }
+    }
+  #endif
 }
 
 private func timeoutFailureMessage(timeout: TimeInterval) -> String {
