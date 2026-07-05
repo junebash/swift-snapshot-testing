@@ -86,6 +86,9 @@
         }
       #endif
 
+      @Test func asyncSnapshot() async {
+        await assertSnapshot(of: ["Hello", "World"], as: .dump, named: "async-snap")
+      }
     }
   }
 #endif

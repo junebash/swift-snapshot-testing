@@ -15,4 +15,18 @@ class WaitTests: BaseTestCase {
 
     assertSnapshot(of: (), as: .wait(for: 1.5, on: strategy))
   }
+
+  @MainActor
+  func testWaitAsync() async {
+    var value = "Hello"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      value = "Goodbye"
+    }
+
+    let strategy = Snapshotting.lines.pullback { (_: Void) in
+      value
+    }
+
+    await assertSnapshot(of: (), as: .wait(for: 1, on: strategy))
+  }
 }
