@@ -221,24 +221,24 @@ public func verifySnapshot<S: SnapshotStrategy>(
 /// render engines set when an asynchronous capture (e.g. a web view snapshot) exceeds it.
 ///
 /// `@unchecked Sendable` is sound: the flag is guarded by a lock and the timeout is immutable.
-final class SnapshotCaptureContext: @unchecked Sendable {
-  @TaskLocal static var current: SnapshotCaptureContext?
+package final class SnapshotCaptureContext: @unchecked Sendable {
+  @TaskLocal package static var current: SnapshotCaptureContext?
 
-  let timeout: TimeInterval
+  package let timeout: TimeInterval
   private let lock = NSLock()
   private var _timedOut = false
 
-  init(timeout: TimeInterval) {
+  package init(timeout: TimeInterval) {
     self.timeout = timeout
   }
 
-  var timedOut: Bool {
+  package var timedOut: Bool {
     lock.lock()
     defer { lock.unlock() }
     return _timedOut
   }
 
-  func markTimedOut() {
+  package func markTimedOut() {
     lock.lock()
     defer { lock.unlock() }
     _timedOut = true

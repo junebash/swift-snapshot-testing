@@ -18,7 +18,8 @@
         }
       }
 
-      @Test(.snapshots(record: .missing)) func inlineSnapshotFailure() {
+      @Test(.snapshots(record: SnapshotTesting.SnapshotTestingConfiguration.Record.missing))
+      func inlineSnapshotFailure() {
         withKnownIssue {
           assertInlineSnapshot(of: ["Hello", "World"], as: .dump) {
             """

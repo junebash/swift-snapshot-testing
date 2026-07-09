@@ -336,7 +336,7 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable {
 // MARK: - Private
 
 #if canImport(SwiftSyntax509)
-  private let installTestObserver: Void = {
+  let installTestObserver: Void = {
     atexit {
       writeInlineSnapshots()
     }
@@ -733,11 +733,11 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable {
   }
 
   extension String {
-    fileprivate func indenting(by count: Int) -> String {
+    func indenting(by count: Int) -> String {
       self.indenting(with: String(repeating: " ", count: count))
     }
 
-    fileprivate func indenting(with prefix: String) -> String {
+    func indenting(with prefix: String) -> String {
       guard !prefix.isEmpty else { return self }
       return self.replacingOccurrences(
         of: #"([^\n]+)"#,

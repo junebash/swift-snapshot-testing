@@ -52,6 +52,7 @@ let package = Package(
       name: "InlineSnapshotTesting",
       dependencies: [
         "SnapshotTesting",
+        "SnapshotTestingAsync",
         "SnapshotTestingCustomDump",
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),

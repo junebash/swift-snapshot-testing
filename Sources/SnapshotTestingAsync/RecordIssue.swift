@@ -7,7 +7,7 @@ import XCTest
 // Failure reporting that works under both swift-testing and XCTest, ported from the legacy
 // `Internal/RecordIssue.swift`.
 
-var isSwiftTesting: Bool {
+package var isSwiftTesting: Bool {
   #if canImport(Testing)
     return Test.current != nil
   #else
@@ -15,7 +15,7 @@ var isSwiftTesting: Bool {
   #endif
 }
 
-func recordIssue(
+package func recordIssue(
   _ message: @autoclosure () -> String,
   fileID: StaticString,
   filePath: StaticString,
