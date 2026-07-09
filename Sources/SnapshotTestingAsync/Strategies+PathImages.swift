@@ -69,4 +69,31 @@
         }
     }
   }
+#elseif os(iOS) || os(tvOS)
+  import UIKit
+
+  extension SnapshotStrategy where Self == _Pullback<UIBezierPath, UIImageStrategy> {
+    /// A snapshot strategy for comparing paths based on pixel equality.
+    public static var image: _Pullback<UIBezierPath, UIImageStrategy> { .image() }
+
+    /// A snapshot strategy for comparing paths based on pixel equality.
+    ///
+    /// - Parameters:
+    ///   - precision: The percentage of pixels that must match.
+    ///   - perceptualPrecision: The percentage a pixel must match the source pixel to be considered
+    ///     a match.
+    ///   - scale: The scale to use when loading the reference image from disk.
+    public static func image(
+      precision: Float = 1, perceptualPrecision: Float = 1, scale: CGFloat = 1
+    ) -> _Pullback<UIBezierPath, UIImageStrategy> {
+      UIImageStrategy(precision: precision, perceptualPrecision: perceptualPrecision, scale: scale)
+        .pullback { (path: UIBezierPath) -> UIImage in
+          let format = UIGraphicsImageRendererFormat.preferred()
+          format.scale = scale
+          return UIGraphicsImageRenderer(bounds: path.bounds, format: format).image { _ in
+            path.fill()
+          }
+        }
+    }
+  }
 #endif

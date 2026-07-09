@@ -36,4 +36,34 @@
         }
     }
   }
+#elseif os(iOS) || os(tvOS)
+  import UIKit
+
+  extension SnapshotStrategy where Self == _Pullback<CALayer, UIImageStrategy> {
+    /// A snapshot strategy for comparing layers based on pixel equality.
+    public static var image: _Pullback<CALayer, UIImageStrategy> { .image() }
+
+    /// A snapshot strategy for comparing layers based on pixel equality.
+    ///
+    /// - Parameters:
+    ///   - precision: The percentage of pixels that must match.
+    ///   - perceptualPrecision: The percentage a pixel must match the source pixel to be considered
+    ///     a match.
+    ///   - traits: A trait collection override.
+    public static func image(
+      precision: Float = 1, perceptualPrecision: Float = 1, traits: UITraitCollection = .init()
+    ) -> _Pullback<CALayer, UIImageStrategy> {
+      UIImageStrategy(
+        precision: precision, perceptualPrecision: perceptualPrecision,
+        scale: traits.displayScale
+      )
+      .pullback { (layer: CALayer) -> UIImage in
+        UIGraphicsImageRenderer(bounds: layer.bounds, format: .init(for: traits)).image { ctx in
+          layer.setNeedsLayout()
+          layer.layoutIfNeeded()
+          layer.render(in: ctx.cgContext)
+        }
+      }
+    }
+  }
 #endif
