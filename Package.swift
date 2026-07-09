@@ -68,6 +68,7 @@ let package = Package(
       name: "SnapshotTestingCustomDump",
       dependencies: [
         "SnapshotTesting",
+        "SnapshotTestingAsync",
         .product(name: "CustomDump", package: "swift-custom-dump"),
       ]
     ),
@@ -81,7 +82,8 @@ let package = Package(
     .testTarget(
       name: "SnapshotTestingAsyncTests",
       dependencies: [
-        "SnapshotTestingAsync"
+        "SnapshotTestingAsync",
+        "SnapshotTestingCustomDump",
       ],
       swiftSettings: [.swiftLanguageMode(.v6)]
     ),
