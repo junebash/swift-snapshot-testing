@@ -42,5 +42,27 @@
       let diffing = NSImageDiffing(precision: 1, perceptualPrecision: 0.9)
       #expect(diffing.diff(reference, candidate) == nil)
     }
+
+    /// The legacy engine compared pixel buffers in each image's own color profile, so this
+    /// reference (recorded on a Studio Display, whose ICC profile is embedded in the PNG) never
+    /// byte-matched a freshly drawn `NSColor.red` on any other display. Comparison is normalized
+    /// to sRGB precisely so that identical colors match regardless of the recording machine.
+    @Test func exactMatchIsIndependentOfEmbeddedColorProfile() throws {
+      let referenceURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("SnapshotTestingTests")
+        .appendingPathComponent("__Snapshots__")
+        .appendingPathComponent("SwiftTestingTests")
+        .appendingPathComponent("testNSImage.pixel.png")
+      let diffing = NSImageDiffing()
+      let reference = try diffing.value(from: Data(contentsOf: referenceURL))
+      let candidate = NSImage(size: NSSize(width: 1, height: 1), flipped: false) { rect in
+        NSColor.red.setFill()
+        rect.fill()
+        return true
+      }
+      #expect(diffing.diff(reference, candidate) == nil)
+    }
   }
 #endif

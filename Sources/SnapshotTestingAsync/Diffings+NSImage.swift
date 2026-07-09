@@ -11,8 +11,11 @@
   ///
   /// The exact-match path (memcmp of decoded pixel buffers), the `precision` byte-threshold path,
   /// and the perceptual path (`perceptualPrecision < 1`, Lab ΔE via Core Image / Metal, in
-  /// `PerceptualComparison.swift`) are all ported verbatim to keep behavior and PNG reference
-  /// files identical to the legacy witnesses.
+  /// `PerceptualComparison.swift`) follow the legacy witnesses, with one deliberate fix: pixel
+  /// buffers are normalized to sRGB before comparison. The legacy engine compared bytes in each
+  /// image's *own* color profile, so a reference recorded on one display (with its ICC profile
+  /// embedded in the PNG) could never byte-match a capture of the identical color on a machine
+  /// with a different display profile.
   public struct NSImageDiffing: DiffStrategy {
     public typealias Value = NSImage
 
@@ -107,12 +110,8 @@
         perceptualPrecision: perceptualPrecision
       )
     }
-    guard
-      let oldRep = NSBitmapImageRep(cgImage: oldCgImage).bitmapData,
-      let newRep = NSBitmapImageRep(cgImage: newerCgImage).bitmapData
-    else {
-      return "Newly-taken snapshot's data could not be loaded."
-    }
+    let oldRep = oldData.assumingMemoryBound(to: UInt8.self)
+    let newRep = newerData.assumingMemoryBound(to: UInt8.self)
     let byteCountThreshold = Int((1 - precision) * Float(byteCount))
     var differentByteCount = 0
     var index = 0
@@ -129,15 +128,17 @@
     return nil
   }
 
+  /// Draws the image into a fixed 8-bit sRGB layout so byte comparison is independent of each
+  /// image's embedded color profile and row stride.
   private func context(for cgImage: CGImage) -> CGContext? {
     guard
-      let space = cgImage.colorSpace,
+      let space = CGColorSpace(name: CGColorSpace.sRGB),
       let context = CGContext(
         data: nil,
         width: cgImage.width,
         height: cgImage.height,
-        bitsPerComponent: cgImage.bitsPerComponent,
-        bytesPerRow: cgImage.bytesPerRow,
+        bitsPerComponent: 8,
+        bytesPerRow: cgImage.width * 4,
         space: space,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
       )
