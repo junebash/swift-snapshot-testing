@@ -101,6 +101,33 @@
     }
   }
 
+  extension SnapshotStrategy where Self == _Pullback<NSView, LinesStrategy> {
+    /// A snapshot strategy for comparing views based on a recursive description of their properties
+    /// and hierarchies.
+    ///
+    /// ``` swift
+    /// await assertSnapshot(of: view, as: .recursiveDescription)
+    /// ```
+    ///
+    /// Records:
+    ///
+    /// ```
+    /// [   AF      LU ] h=--- v=--- NSButton "Push Me" f=(0,0,77,32) b=(-)
+    ///   [   A       LU ] h=--- v=--- NSButtonBezelView f=(0,0,77,32) b=(-)
+    ///   [   AF      LU ] h=--- v=--- NSButtonTextField "Push Me" f=(10,6,57,16) b=(-)
+    /// ```
+    public static var recursiveDescription: _Pullback<NSView, LinesStrategy> {
+      LinesStrategy().pullback { (view: NSView) -> String in
+        // `_subtreeDescription` is AppKit's private hierarchy dump — same selector the legacy
+        // witness used; it always returns an `NSString`, but a runtime surprise should degrade to
+        // a diffable marker rather than trap.
+        let description =
+          view.perform(Selector(("_subtreeDescription"))).retain().takeUnretainedValue() as? String
+        return purgePointers(description ?? "<no _subtreeDescription>")
+      }
+    }
+  }
+
   // MARK: - Render engine
 
   private final class ScaledWindow: NSWindow {
