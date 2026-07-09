@@ -9,10 +9,10 @@
 
   /// Pixel-diffing for `NSImage`. The protocol form of the old `Diffing<NSImage>.image`.
   ///
-  /// The exact-match path (memcmp of decoded pixel buffers) and the `precision` byte-threshold path
-  /// are ported verbatim to keep PNG reference files byte-identical. The perceptual path
-  /// (`perceptualPrecision < 1`, backed by Core Image / Metal) is ported in a later phase; until
-  /// then a sub-1 `perceptualPrecision` falls back to the byte-threshold comparison.
+  /// The exact-match path (memcmp of decoded pixel buffers), the `precision` byte-threshold path,
+  /// and the perceptual path (`perceptualPrecision < 1`, Lab ΔE via Core Image / Metal, in
+  /// `PerceptualComparison.swift`) are all ported verbatim to keep behavior and PNG reference
+  /// files identical to the legacy witnesses.
   public struct NSImageDiffing: DiffStrategy {
     public typealias Value = NSImage
 
@@ -99,7 +99,14 @@
     if precision >= 1, perceptualPrecision >= 1 {
       return "Newly-taken snapshot does not match reference."
     }
-    // TODO(phase 3): port `perceptuallyCompare` for the `perceptualPrecision < 1` case.
+    if perceptualPrecision < 1 {
+      return perceptuallyCompare(
+        CIImage(cgImage: oldCgImage),
+        CIImage(cgImage: newCgImage),
+        pixelPrecision: precision,
+        perceptualPrecision: perceptualPrecision
+      )
+    }
     guard
       let oldRep = NSBitmapImageRep(cgImage: oldCgImage).bitmapData,
       let newRep = NSBitmapImageRep(cgImage: newerCgImage).bitmapData
