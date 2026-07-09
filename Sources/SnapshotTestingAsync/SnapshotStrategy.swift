@@ -84,6 +84,33 @@ public struct _Pullback<New, Base: SnapshotStrategy>: SnapshotStrategy {
   }
 }
 
+extension SnapshotStrategy {
+  /// Overrides the path extension used for reference files (e.g. `"json"`), leaving capture and
+  /// diffing unchanged. Replaces the old mutable `Snapshotting.pathExtension` assignment.
+  public func pathExtension(_ pathExtension: String?) -> _PathExtension<Self> {
+    _PathExtension(base: self, pathExtension: pathExtension)
+  }
+}
+
+/// The strategy produced by ``SnapshotStrategy/pathExtension(_:)``. Public so `some SnapshotStrategy`
+/// return types resolve; not intended to be named directly.
+public struct _PathExtension<Base: SnapshotStrategy>: SnapshotStrategy {
+  public typealias Value = Base.Value
+  public typealias Format = Base.Format
+  public typealias Diffing = Base.Diffing
+
+  let base: Base
+  public let pathExtension: String?
+
+  public var diffing: Base.Diffing { base.diffing }
+
+  public nonisolated(nonsending) func snapshot(of value: sending Base.Value) async -> sending Base
+    .Format
+  {
+    await base.snapshot(of: value)
+  }
+}
+
 /// The strategy produced by ``SnapshotStrategy/asyncPullback(_:)``. Public so `some SnapshotStrategy`
 /// return types resolve; not intended to be named directly.
 public struct _AsyncPullback<New, Base: SnapshotStrategy>: SnapshotStrategy {
