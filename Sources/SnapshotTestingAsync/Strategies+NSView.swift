@@ -70,22 +70,30 @@
 
     @MainActor
     public func snapshot(of view: sending NSView) async -> sending NSImage {
-      let initialSize = view.frame.size
-      if let size { view.frame.size = size }
-      guard view.frame.width > 0, view.frame.height > 0 else {
-        fatalError("View not renderable to image at size \(view.frame.size)")
-      }
-      let overlays = await renderedSubviewImages(of: view)
-      guard let bitmapRep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-        fatalError("View could not be cached for display at size \(view.bounds.size)")
-      }
-      view.cacheDisplay(in: view.bounds, to: bitmapRep)
-      let image = NSImage(size: view.bounds.size)
-      image.addRepresentation(bitmapRep)
-      overlays.forEach { $0.removeFromSuperview() }
-      view.frame.size = initialSize
-      return image
+      await renderImage(of: view, size: size)
     }
+  }
+
+  /// Renders a view to an image — the body of `NSViewImageStrategy`, exposed with a plain
+  /// (non-`sending`) parameter so sibling strategies (view controllers, scenes) can render views
+  /// that alias the value they were derived from.
+  @MainActor
+  func renderImage(of view: NSView, size: CGSize?) async -> NSImage {
+    let initialSize = view.frame.size
+    if let size { view.frame.size = size }
+    guard view.frame.width > 0, view.frame.height > 0 else {
+      fatalError("View not renderable to image at size \(view.frame.size)")
+    }
+    let overlays = await renderedSubviewImages(of: view)
+    guard let bitmapRep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+      fatalError("View could not be cached for display at size \(view.bounds.size)")
+    }
+    view.cacheDisplay(in: view.bounds, to: bitmapRep)
+    let image = NSImage(size: view.bounds.size)
+    image.addRepresentation(bitmapRep)
+    overlays.forEach { $0.removeFromSuperview() }
+    view.frame.size = initialSize
+    return image
   }
 
   extension SnapshotStrategy where Self == NSViewImageStrategy {
@@ -117,15 +125,18 @@
     ///   [   AF      LU ] h=--- v=--- NSButtonTextField "Push Me" f=(10,6,57,16) b=(-)
     /// ```
     public static var recursiveDescription: _Pullback<NSView, LinesStrategy> {
-      LinesStrategy().pullback { (view: NSView) -> String in
-        // `_subtreeDescription` is AppKit's private hierarchy dump — same selector the legacy
-        // witness used; it always returns an `NSString`, but a runtime surprise should degrade to
-        // a diffable marker rather than trap.
-        let description =
-          view.perform(Selector(("_subtreeDescription"))).retain().takeUnretainedValue() as? String
-        return purgePointers(description ?? "<no _subtreeDescription>")
-      }
+      LinesStrategy().pullback { (view: NSView) -> String in subtreeDescription(of: view) }
     }
+  }
+
+  /// AppKit's private hierarchy dump — the same `_subtreeDescription` selector the legacy witness
+  /// used; it always returns an `NSString`, but a runtime surprise should degrade to a diffable
+  /// marker rather than trap. Shared with the `NSViewController` strategy.
+  @MainActor
+  func subtreeDescription(of view: NSView) -> String {
+    let description =
+      view.perform(Selector(("_subtreeDescription"))).retain().takeUnretainedValue() as? String
+    return purgePointers(description ?? "<no _subtreeDescription>")
   }
 
   // MARK: - Render engine
