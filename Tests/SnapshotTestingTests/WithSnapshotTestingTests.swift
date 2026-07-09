@@ -1,4 +1,4 @@
-@_spi(Internals) @testable import SnapshotTesting
+@testable import SnapshotTesting
 import XCTest
 
 class WithSnapshotTestingTests: XCTestCase {

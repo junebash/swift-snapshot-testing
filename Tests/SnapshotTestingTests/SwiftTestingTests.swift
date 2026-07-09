@@ -13,10 +13,10 @@
   extension BaseSuite {
     @Suite(.serialized, .snapshots(record: .missing))
     struct SwiftTestingTests {
-      @Test func testSnapshot() {
-        assertSnapshot(of: ["Hello", "World"], as: .dump, named: "snap")
-        withKnownIssue {
-          assertSnapshot(of: ["Goodbye", "World"], as: .dump, named: "snap")
+      @Test func testSnapshot() async {
+        await assertSnapshot(of: ["Hello", "World"], as: .dump(), named: "snap")
+        await withKnownIssue {
+          await assertSnapshot(of: ["Goodbye", "World"], as: .dump(), named: "snap")
         } matching: { issue in
           issue.description.hasSuffix(
             """
@@ -36,7 +36,7 @@
             !ProcessInfo.processInfo.environment.keys.contains("GITHUB_WORKFLOW")
           }
         )
-        func testUIImage() {
+        func testUIImage() async {
           let redPixel = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image {
             context in
             UIColor.red.setFill()
@@ -47,9 +47,9 @@
             UIColor.blue.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
           }
-          assertSnapshot(of: redPixel, as: .image, named: "pixel")
-          withKnownIssue {
-            assertSnapshot(of: bluePixel, as: .image, named: "pixel")
+          await assertSnapshot(of: redPixel, as: .image, named: "pixel")
+          await withKnownIssue {
+            await assertSnapshot(of: bluePixel, as: .image, named: "pixel")
           } matching: { issue in
             issue.description.hasSuffix(
               "Newly-taken snapshot does not match reference."
@@ -64,7 +64,7 @@
             !ProcessInfo.processInfo.environment.keys.contains("GITHUB_WORKFLOW")
           }
         )
-        func testNSImage() {
+        func testNSImage() async {
           let redPixel = NSImage(size: NSSize(width: 1, height: 1), flipped: false) { rect in
             NSColor.red.setFill()
             rect.fill()
@@ -75,9 +75,9 @@
             rect.fill()
             return true
           }
-          assertSnapshot(of: redPixel, as: .image, named: "pixel")
-          withKnownIssue {
-            assertSnapshot(of: bluePixel, as: .image, named: "pixel")
+          await assertSnapshot(of: redPixel, as: .image, named: "pixel")
+          await withKnownIssue {
+            await assertSnapshot(of: bluePixel, as: .image, named: "pixel")
           } matching: { issue in
             issue.description.hasSuffix(
               "Newly-taken snapshot does not match reference."
@@ -87,7 +87,7 @@
       #endif
 
       @Test func asyncSnapshot() async {
-        await assertSnapshot(of: ["Hello", "World"], as: .dump, named: "async-snap")
+        await assertSnapshot(of: ["Hello", "World"], as: .dump(), named: "async-snap")
       }
     }
   }

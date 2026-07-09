@@ -1,7 +1,7 @@
 import SnapshotTesting
 import XCTest
 
-class RecordTests: BaseTestCase {
+final class RecordTests: BaseTestCase {
   var snapshotURL: URL!
 
   override func setUp() {
@@ -11,10 +11,10 @@ class RecordTests: BaseTestCase {
       self.name
         .split(separator: " ")
         .flatMap { String($0).split(separator: ".") }
-        .last!
+        .last ?? ""
     )
     .prefix(while: { $0 != "]" })
-    let fileURL = URL(fileURLWithPath: #file, isDirectory: false)
+    let fileURL = URL(fileURLWithPath: #filePath, isDirectory: false)
     let testClassName = fileURL.deletingPathExtension().lastPathComponent
     let testDirectory =
       fileURL
@@ -36,132 +36,124 @@ class RecordTests: BaseTestCase {
       .removeItem(at: snapshotURL.deletingLastPathComponent())
   }
 
-  #if canImport(Darwin)
-    func testRecordNever() {
-      XCTExpectFailure {
-        withSnapshotTesting(record: .never) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription == """
-          failed - No reference was found on disk. New snapshot was not recorded because recording is disabled
-          """
-      }
+  // These tests check the exact failure message `verifySnapshot` returns rather than routing
+  // through `assertSnapshot` + `XCTExpectFailure`, since `XCTExpectFailure`'s `failingBlock` has
+  // no async overload and `assertSnapshot` is now async.
 
-      XCTAssertEqual(
-        FileManager.default.fileExists(atPath: snapshotURL.path),
-        false
-      )
+  func testRecordNever() async {
+    let failure = await withSnapshotTesting(record: .never) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure,
+      """
+      No reference was found on disk. New snapshot was not recorded because recording is disabled
+      """
+    )
 
-  #if canImport(Darwin)
-    func testRecordMissing() {
-      XCTExpectFailure {
-        withSnapshotTesting(record: .missing) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - No reference was found on disk. Automatically recorded snapshot: …
-          """)
-      }
+    XCTAssertEqual(
+      FileManager.default.fileExists(atPath: snapshotURL.path),
+      false
+    )
+  }
 
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "42"
-      )
+  func testRecordMissing() async throws {
+    let failure = await withSnapshotTesting(record: .missing) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        No reference was found on disk. Automatically recorded snapshot: …
+        """),
+      true
+    )
 
-  #if canImport(Darwin)
-    func testRecordMissing_ExistingFile() throws {
-      try Data("999".utf8).write(to: snapshotURL)
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "42"
+    )
+  }
 
-      XCTExpectFailure {
-        withSnapshotTesting(record: .missing) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - Snapshot does not match reference.
-          """)
-      }
+  func testRecordMissing_ExistingFile() async throws {
+    try Data("999".utf8).write(to: snapshotURL)
 
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "999"
-      )
+    let failure = await withSnapshotTesting(record: .missing) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        Snapshot does not match reference.
+        """),
+      true
+    )
 
-  #if canImport(Darwin)
-    func testRecordAll_Fresh() throws {
-      XCTExpectFailure {
-        withSnapshotTesting(record: .all) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - Record mode is on. Automatically recorded snapshot: …
-          """)
-      }
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "999"
+    )
+  }
 
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "42"
-      )
+  func testRecordAll_Fresh() async throws {
+    let failure = await withSnapshotTesting(record: .all) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        Record mode is on. Automatically recorded snapshot: …
+        """),
+      true
+    )
 
-  #if canImport(Darwin)
-    func testRecordAll_Overwrite() throws {
-      try Data("999".utf8).write(to: snapshotURL)
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "42"
+    )
+  }
 
-      XCTExpectFailure {
-        withSnapshotTesting(record: .all) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - Record mode is on. Automatically recorded snapshot: …
-          """)
-      }
+  func testRecordAll_Overwrite() async throws {
+    try Data("999".utf8).write(to: snapshotURL)
 
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "42"
-      )
+    let failure = await withSnapshotTesting(record: .all) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        Record mode is on. Automatically recorded snapshot: …
+        """),
+      true
+    )
 
-  #if canImport(Darwin)
-    func testRecordFailed_WhenFailure() throws {
-      try Data("999".utf8).write(to: snapshotURL)
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "42"
+    )
+  }
 
-      XCTExpectFailure {
-        withSnapshotTesting(record: .failed) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - Snapshot does not match reference. A new snapshot was automatically recorded.
-          """)
-      }
+  func testRecordFailed_WhenFailure() async throws {
+    try Data("999".utf8).write(to: snapshotURL)
 
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "42"
-      )
+    let failure = await withSnapshotTesting(record: .failed) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        Snapshot does not match reference. A new snapshot was automatically recorded.
+        """),
+      true
+    )
 
-  func testRecordFailed_NoFailure() throws {
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "42"
+    )
+  }
+
+  func testRecordFailed_NoFailure() async throws {
     #if os(Android)
       throw XCTSkip("cannot save next to file on Android")
     #endif
@@ -170,9 +162,10 @@ class RecordTests: BaseTestCase {
       try FileManager.default
       .attributesOfItem(atPath: snapshotURL.path)[FileAttributeKey.modificationDate] as! Date
 
-    withSnapshotTesting(record: .failed) {
-      assertSnapshot(of: 42, as: .json)
+    let failure = await withSnapshotTesting(record: .failed) {
+      await verifySnapshot(of: 42, as: .json())
     }
+    XCTAssertNil(failure)
 
     try XCTAssertEqual(
       String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
@@ -185,23 +178,21 @@ class RecordTests: BaseTestCase {
     )
   }
 
-  #if canImport(Darwin)
-    func testRecordFailed_MissingFile() throws {
-      XCTExpectFailure {
-        withSnapshotTesting(record: .failed) {
-          assertSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
-        $0.compactDescription.hasPrefix(
-          """
-          failed - No reference was found on disk. Automatically recorded snapshot: …
-          """)
-      }
-
-      try XCTAssertEqual(
-        String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
-        "42"
-      )
+  func testRecordFailed_MissingFile() async throws {
+    let failure = await withSnapshotTesting(record: .failed) {
+      await verifySnapshot(of: 42, as: .json())
     }
-  #endif
+    XCTAssertEqual(
+      failure?.hasPrefix(
+        """
+        No reference was found on disk. Automatically recorded snapshot: …
+        """),
+      true
+    )
+
+    try XCTAssertEqual(
+      String(decoding: Data(contentsOf: snapshotURL), as: UTF8.self),
+      "42"
+    )
+  }
 }

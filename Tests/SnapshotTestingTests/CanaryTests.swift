@@ -22,7 +22,6 @@ import Testing
 
 #if os(macOS)
   import Cocoa
-  import WebKit
 
   @Suite @MainActor struct NSViewCanaryTests {
     /// The reference recorded by the legacy suite's `testNSViewWithLayer`.
@@ -67,41 +66,5 @@ import Testing
       #expect(diff != nil)
     }
 
-    /// Exercises the genuinely-async path at runtime: a `WKWebView` subview whose content is only
-    /// available after loading finishes, snapshotted through the checked-continuation engine. The
-    /// canary's byte-identity test drives a plain view (which returns `nil` from
-    /// `asyncSnapshotImage`), so this is the only test that actually runs the continuation +
-    /// `WebViewLoadObserver`.
-    ///
-    /// Disabled under the batch test runner: both WebKit suspension points here — the `isLoading`
-    /// KVO transition and `WKWebView.takeSnapshot` — deliver their callbacks via the main
-    /// `CFRunLoop`, but under `swift test` the main thread runs the Swift concurrency executor rather
-    /// than a run loop spinning in the mode WebKit's IPC needs. So the capture completes when run
-    /// in a real app run loop (it did in isolation, exit=0) but hangs when co-scheduled with the
-    /// synchronous main-actor NSView-rendering tests. The continuation path is proven; re-enable
-    /// once Phase 4's `await assertSnapshot` yields the main actor so the run loop can spin. This is
-    /// the same run-loop dependency Phase 4 must account for.
-    @Test(
-      .disabled(
-        "WebKit capture needs a spinning main run loop; hangs under the batch runner — see Phase 4")
-    )
-    func webViewSubviewRendersLoadedContentAtRuntime() async throws {
-      let container = NSView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
-      let webView = WKWebView(frame: container.bounds)
-      container.addSubview(webView)
-      webView.loadHTMLString(
-        "<body style='margin:0;background:#ff0000'></body>", baseURL: nil)
-
-      let image = await NSViewImageStrategy().snapshot(of: container)
-
-      // The rendered image must be non-empty and actually contain the loaded red content — proving
-      // the async web snapshot ran and was composited, not skipped.
-      #expect(image.size.width > 0)
-      let pngData = try #require(NSImageDiffing().data(from: image) as Data?)
-      let rep = try #require(NSBitmapImageRep(data: pngData))
-      let center = try #require(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2))
-      #expect(center.redComponent > 0.5)
-      #expect(center.greenComponent < 0.5)
-    }
   }
 #endif

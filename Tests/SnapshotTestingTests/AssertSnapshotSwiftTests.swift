@@ -5,19 +5,19 @@
 
   extension BaseSuite {
     struct AssertSnapshotTests {
-      @Test(.snapshots(record: .missing)) func dump() {
+      @Test(.snapshots(record: .missing)) func dump() async {
         struct User { let id: Int, name: String, bio: String }
         let user = User(id: 1, name: "Blobby", bio: "Blobbed around the world.")
-        assertSnapshot(of: user, as: .dump)
+        await assertSnapshot(of: user, as: .dump())
       }
     }
 
     @MainActor
     struct MainActorTests {
-      @Test func dump() {
+      @Test func dump() async {
         struct User { let id: Int, name: String, bio: String }
         let user = User(id: 1, name: "Blobby", bio: "Blobbed around the world.")
-        assertSnapshot(of: user, as: .dump)
+        await assertSnapshot(of: user, as: .dump())
       }
     }
   }

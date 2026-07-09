@@ -1,13 +1,13 @@
 #if compiler(>=6) && canImport(Testing)
   import Testing
-  @_spi(Internals) import SnapshotTesting
+  @testable import SnapshotTesting
 
   extension BaseSuite {
     struct SnapshotsTraitTests {
       @Test(.snapshots(diffTool: "ksdiff"))
       func testDiffTool() {
         #expect(
-          _diffTool(currentFilePath: "old.png", failedFilePath: "new.png")
+          defaultDiffTool(currentFilePath: "old.png", failedFilePath: "new.png")
             == "ksdiff old.png new.png"
         )
       }
@@ -17,7 +17,7 @@
         @Test(.snapshots(diffTool: "difftool"))
         func testDiffToolOverride() {
           #expect(
-            _diffTool(currentFilePath: "old.png", failedFilePath: "new.png")
+            defaultDiffTool(currentFilePath: "old.png", failedFilePath: "new.png")
               == "difftool old.png new.png"
           )
         }
@@ -27,10 +27,10 @@
           @Test
           func config() {
             #expect(
-              _diffTool(currentFilePath: "old.png", failedFilePath: "new.png")
+              defaultDiffTool(currentFilePath: "old.png", failedFilePath: "new.png")
                 == "ksdiff old.png new.png"
             )
-            #expect(_record == .all)
+            #expect(defaultRecordMode == .all)
           }
 
           @Suite(.snapshots(record: .failed, diffTool: "diff"))
@@ -38,10 +38,10 @@
             @Test
             func config() {
               #expect(
-                _diffTool(currentFilePath: "old.png", failedFilePath: "new.png")
+                defaultDiffTool(currentFilePath: "old.png", failedFilePath: "new.png")
                   == "diff old.png new.png"
               )
-              #expect(_record == .failed)
+              #expect(defaultRecordMode == .failed)
             }
           }
         }

@@ -166,7 +166,7 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable, Sendable {
     }
   }
 
-  @_spi(Internals) public struct InlineSnapshot: Hashable {
+  @_spi(Internals) public struct InlineSnapshot: Hashable, Sendable {
     public var expected: String?
     public var actual: String?
     public var wasRecording: Bool

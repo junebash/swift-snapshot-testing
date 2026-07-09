@@ -4,8 +4,9 @@ import SnapshotTesting
 import XCTest
 
 final class InlineSnapshotTestingTests: BaseTestCase {
-  func testInlineSnapshot() {
-    assertInlineSnapshot(of: ["Hello", "World"], as: .dump) {
+  @MainActor
+  func testInlineSnapshot() async {
+    await assertInlineSnapshot(of: ["Hello", "World"], as: .dump()) {
       """
       ▿ 2 elements
         - "Hello"
@@ -15,9 +16,10 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testInlineSnapshot_NamedTrailingClosure() {
-    assertInlineSnapshot(
-      of: ["Hello", "World"], as: .dump,
+  @MainActor
+  func testInlineSnapshot_NamedTrailingClosure() async {
+    await assertInlineSnapshot(
+      of: ["Hello", "World"], as: .dump(),
       matches: {
         """
         ▿ 2 elements
@@ -28,16 +30,18 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       })
   }
 
-  func testInlineSnapshot_Escaping() {
-    assertInlineSnapshot(of: "Hello\"\"\"#, world", as: .lines) {
+  @MainActor
+  func testInlineSnapshot_Escaping() async {
+    await assertInlineSnapshot(of: "Hello\"\"\"#, world", as: .lines) {
       ##"""
       Hello"""#, world
       """##
     }
   }
 
-  func testCustomInlineSnapshot() {
-    assertCustomInlineSnapshot {
+  @MainActor
+  func testCustomInlineSnapshot() async {
+    await assertCustomInlineSnapshot {
       "Hello"
     } is: {
       """
@@ -47,8 +51,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCustomInlineSnapshot_Multiline() {
-    assertCustomInlineSnapshot {
+  @MainActor
+  func testCustomInlineSnapshot_Multiline() async {
+    await assertCustomInlineSnapshot {
       """
       "Hello"
       "World"
@@ -61,8 +66,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCustomInlineSnapshot_SingleTrailingClosure() {
-    assertCustomInlineSnapshot(of: { "Hello" }) {
+  @MainActor
+  func testCustomInlineSnapshot_SingleTrailingClosure() async {
+    await assertCustomInlineSnapshot(of: { "Hello" }) {
       """
       - "Hello"
 
@@ -70,8 +76,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCustomInlineSnapshot_MultilineSingleTrailingClosure() {
-    assertCustomInlineSnapshot(
+  @MainActor
+  func testCustomInlineSnapshot_MultilineSingleTrailingClosure() async {
+    await assertCustomInlineSnapshot(
       of: { "Hello" }
     ) {
       """
@@ -81,8 +88,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCustomInlineSnapshot_NoTrailingClosure() {
-    assertCustomInlineSnapshot(
+  @MainActor
+  func testCustomInlineSnapshot_NoTrailingClosure() async {
+    await assertCustomInlineSnapshot(
       of: { "Hello" },
       is: {
         """
@@ -93,7 +101,8 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     )
   }
 
-  func testArgumentlessInlineSnapshot() {
+  @MainActor
+  func testArgumentlessInlineSnapshot() async {
     func assertArgumentlessInlineSnapshot(
       expected: (() -> String)? = nil,
       fileID: StaticString = #fileID,
@@ -101,10 +110,10 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       function: StaticString = #function,
       line: UInt = #line,
       column: UInt = #column
-    ) {
-      assertInlineSnapshot(
+    ) async {
+      await assertInlineSnapshot(
         of: "Hello",
-        as: .dump,
+        as: .dump(),
         syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
           trailingClosureLabel: "is",
           trailingClosureOffset: 1
@@ -118,7 +127,7 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       )
     }
 
-    assertArgumentlessInlineSnapshot {
+    await assertArgumentlessInlineSnapshot {
       """
       - "Hello"
 
@@ -126,7 +135,8 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testMultipleInlineSnapshots() {
+  @MainActor
+  func testMultipleInlineSnapshots() async {
     func assertResponse(
       of url: () -> String,
       head: (() -> String)? = nil,
@@ -136,8 +146,8 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       function: StaticString = #function,
       line: UInt = #line,
       column: UInt = #column
-    ) {
-      assertInlineSnapshot(
+    ) async {
+      await assertInlineSnapshot(
         of: """
           HTTP/1.1 200 OK
           Content-Type: text/html; charset=utf-8
@@ -155,7 +165,7 @@ final class InlineSnapshotTestingTests: BaseTestCase {
         line: line,
         column: column
       )
-      assertInlineSnapshot(
+      await assertInlineSnapshot(
         of: """
           <!doctype html>
           <html lang="en">
@@ -184,7 +194,7 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       )
     }
 
-    assertResponse {
+    await assertResponse {
       """
       https://www.pointfree.co/
       """
@@ -210,6 +220,7 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
+  @MainActor
   func testAsyncThrowing() async throws {
     func assertAsyncThrowingInlineSnapshot(
       of value: () -> String,
@@ -220,9 +231,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
       line: UInt = #line,
       column: UInt = #column
     ) async throws {
-      assertInlineSnapshot(
+      await assertInlineSnapshot(
         of: value(),
-        as: .dump,
+        as: .dump(),
         syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
           trailingClosureLabel: "is",
           trailingClosureOffset: 1
@@ -246,13 +257,14 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testNestedInClosureFunction() {
-    func withDependencies(operation: () -> Void) {
-      operation()
+  @MainActor
+  func testNestedInClosureFunction() async {
+    func withDependencies(operation: () async -> Void) async {
+      await operation()
     }
 
-    withDependencies {
-      assertInlineSnapshot(of: "Hello", as: .dump) {
+    await withDependencies {
+      await assertInlineSnapshot(of: "Hello", as: .dump()) {
         """
         - "Hello"
 
@@ -261,8 +273,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCarriageReturnInlineSnapshot() {
-    assertInlineSnapshot(of: "This is a line\r\nAnd this is a line\r\n", as: .lines) {
+  @MainActor
+  func testCarriageReturnInlineSnapshot() async {
+    await assertInlineSnapshot(of: "This is a line\r\nAnd this is a line\r\n", as: .lines) {
       """
       This is a line\r
       And this is a line\r
@@ -271,8 +284,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
     }
   }
 
-  func testCarriageReturnRawInlineSnapshot() {
-    assertInlineSnapshot(of: "\"\"\"#This is a line\r\nAnd this is a line\r\n", as: .lines) {
+  @MainActor
+  func testCarriageReturnRawInlineSnapshot() async {
+    await assertInlineSnapshot(of: "\"\"\"#This is a line\r\nAnd this is a line\r\n", as: .lines) {
       ##"""
       """#This is a line\##r
       And this is a line\##r
@@ -282,19 +296,12 @@ final class InlineSnapshotTestingTests: BaseTestCase {
   }
 
   #if canImport(Darwin)
-    func testRecordFailed_IncorrectExpectation() throws {
+    @MainActor
+    func testRecordFailed_IncorrectExpectation() async throws {
       let initialInlineSnapshotState = inlineSnapshotState.withLock { $0 }
       defer { inlineSnapshotState.withLock { $0 = initialInlineSnapshotState } }
 
       XCTExpectFailure {
-        withSnapshotTesting(record: .failed) {
-          assertInlineSnapshot(of: 42, as: .json) {
-            """
-            4
-            """
-          }
-        }
-      } issueMatcher: {
         $0.compactDescription == """
           failed - Snapshot did not match. Difference: …
 
@@ -304,6 +311,13 @@ final class InlineSnapshotTestingTests: BaseTestCase {
 
           A new snapshot was automatically recorded.
           """
+      }
+      await withSnapshotTesting(record: .failed) {
+        await assertInlineSnapshot(of: 42, as: .json()) {
+          """
+          4
+          """
+        }
       }
 
       inlineSnapshotState.withLock { inlineSnapshotState in
@@ -318,15 +332,12 @@ final class InlineSnapshotTestingTests: BaseTestCase {
   #endif
 
   #if canImport(Darwin)
-    func testRecordFailed_MissingExpectation() throws {
+    @MainActor
+    func testRecordFailed_MissingExpectation() async throws {
       let initialInlineSnapshotState = inlineSnapshotState.withLock { $0 }
       defer { inlineSnapshotState.withLock { $0 = initialInlineSnapshotState } }
 
       XCTExpectFailure {
-        withSnapshotTesting(record: .failed) {
-          assertInlineSnapshot(of: 42, as: .json)
-        }
-      } issueMatcher: {
         $0.compactDescription == """
           failed - Automatically recorded a new snapshot. Difference: …
 
@@ -336,6 +347,9 @@ final class InlineSnapshotTestingTests: BaseTestCase {
 
           Re-run "testRecordFailed_MissingExpectation()" to assert against the newly-recorded snapshot.
           """
+      }
+      await withSnapshotTesting(record: .failed) {
+        await assertInlineSnapshot(of: 42, as: .json())
       }
 
       inlineSnapshotState.withLock { inlineSnapshotState in
@@ -350,6 +364,7 @@ final class InlineSnapshotTestingTests: BaseTestCase {
   #endif
 }
 
+@MainActor
 private func assertCustomInlineSnapshot(
   of value: () -> String,
   is expected: (() -> String)? = nil,
@@ -358,10 +373,10 @@ private func assertCustomInlineSnapshot(
   function: StaticString = #function,
   line: UInt = #line,
   column: UInt = #column
-) {
-  assertInlineSnapshot(
+) async {
+  await assertInlineSnapshot(
     of: value(),
-    as: .dump,
+    as: .dump(),
     syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
       trailingClosureLabel: "is",
       trailingClosureOffset: 1

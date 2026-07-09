@@ -6,9 +6,10 @@
 
   extension BaseSuite {
     @Suite
+    @MainActor
     struct AssertInlineSnapshotTests {
-      @Test func inlineSnapshot() {
-        assertInlineSnapshot(of: ["Hello", "World"], as: .dump) {
+      @Test func inlineSnapshot() async {
+        await assertInlineSnapshot(of: ["Hello", "World"], as: .dump()) {
           """
           ▿ 2 elements
             - "Hello"
@@ -18,10 +19,10 @@
         }
       }
 
-      @Test(.snapshots(record: SnapshotTesting.SnapshotTestingConfiguration.Record.missing))
-      func inlineSnapshotFailure() {
-        withKnownIssue {
-          assertInlineSnapshot(of: ["Hello", "World"], as: .dump) {
+      @Test(.snapshots(record: .missing))
+      func inlineSnapshotFailure() async {
+        await withKnownIssue {
+          await assertInlineSnapshot(of: ["Hello", "World"], as: .dump()) {
             """
             ▿ 2 elements
               - "Hello"
@@ -29,22 +30,25 @@
             """
           }
         } matching: { issue in
-          issue.description.hasSuffix(
+          // Context lines in diff hunks are marked with U+2007 (figure space), written as an
+          // explicit escape so editors can't silently normalize it to a plain space. `contains`,
+          // not `hasSuffix`, because the diff ends with a whitespace-only context line that's
+          // just as prone to being stripped.
+          issue.description.contains(
             """
             Snapshot did not match. Difference: …
 
               @@ −1,3 +1,4 @@
-               ▿ 2 elements
-                 - "Hello"
+              \u{2007}▿ 2 elements
+              \u{2007}  - "Hello"
               +  - "World"
-               
             """)
         }
       }
 
-      @Test func inlineSnapshot_NamedTrailingClosure() {
-        assertInlineSnapshot(
-          of: ["Hello", "World"], as: .dump,
+      @Test func inlineSnapshot_NamedTrailingClosure() async {
+        await assertInlineSnapshot(
+          of: ["Hello", "World"], as: .dump(),
           matches: {
             """
             ▿ 2 elements
@@ -55,16 +59,16 @@
           })
       }
 
-      @Test func inlineSnapshot_Escaping() {
-        assertInlineSnapshot(of: "Hello\"\"\"#, world", as: .lines) {
+      @Test func inlineSnapshot_Escaping() async {
+        await assertInlineSnapshot(of: "Hello\"\"\"#, world", as: .lines) {
           ##"""
           Hello"""#, world
           """##
         }
       }
 
-      @Test func customInlineSnapshot() {
-        assertCustomInlineSnapshot {
+      @Test func customInlineSnapshot() async {
+        await assertCustomInlineSnapshot {
           "Hello"
         } is: {
           """
@@ -74,8 +78,8 @@
         }
       }
 
-      @Test func customInlineSnapshot_Multiline() {
-        assertCustomInlineSnapshot {
+      @Test func customInlineSnapshot_Multiline() async {
+        await assertCustomInlineSnapshot {
           """
           "Hello"
           "World"
@@ -88,8 +92,8 @@
         }
       }
 
-      @Test func customInlineSnapshot_SingleTrailingClosure() {
-        assertCustomInlineSnapshot(of: { "Hello" }) {
+      @Test func customInlineSnapshot_SingleTrailingClosure() async {
+        await assertCustomInlineSnapshot(of: { "Hello" }) {
           """
           - "Hello"
 
@@ -97,8 +101,8 @@
         }
       }
 
-      @Test func customInlineSnapshot_MultilineSingleTrailingClosure() {
-        assertCustomInlineSnapshot(
+      @Test func customInlineSnapshot_MultilineSingleTrailingClosure() async {
+        await assertCustomInlineSnapshot(
           of: { "Hello" }
         ) {
           """
@@ -108,8 +112,8 @@
         }
       }
 
-      @Test func customInlineSnapshot_NoTrailingClosure() {
-        assertCustomInlineSnapshot(
+      @Test func customInlineSnapshot_NoTrailingClosure() async {
+        await assertCustomInlineSnapshot(
           of: { "Hello" },
           is: {
             """
@@ -120,7 +124,7 @@
         )
       }
 
-      @Test func argumentlessInlineSnapshot() {
+      @Test func argumentlessInlineSnapshot() async {
         func assertArgumentlessInlineSnapshot(
           expected: (() -> String)? = nil,
           fileID: StaticString = #fileID,
@@ -128,10 +132,10 @@
           function: StaticString = #function,
           line: UInt = #line,
           column: UInt = #column
-        ) {
-          assertInlineSnapshot(
+        ) async {
+          await assertInlineSnapshot(
             of: "Hello",
-            as: .dump,
+            as: .dump(),
             syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
               trailingClosureLabel: "is",
               trailingClosureOffset: 1
@@ -145,7 +149,7 @@
           )
         }
 
-        assertArgumentlessInlineSnapshot {
+        await assertArgumentlessInlineSnapshot {
           """
           - "Hello"
 
@@ -153,7 +157,7 @@
         }
       }
 
-      @Test func multipleInlineSnapshots() {
+      @Test func multipleInlineSnapshots() async {
         func assertResponse(
           of url: () -> String,
           head: (() -> String)? = nil,
@@ -163,8 +167,8 @@
           function: StaticString = #function,
           line: UInt = #line,
           column: UInt = #column
-        ) {
-          assertInlineSnapshot(
+        ) async {
+          await assertInlineSnapshot(
             of: """
               HTTP/1.1 200 OK
               Content-Type: text/html; charset=utf-8
@@ -182,7 +186,7 @@
             line: line,
             column: column
           )
-          assertInlineSnapshot(
+          await assertInlineSnapshot(
             of: """
               <!doctype html>
               <html lang="en">
@@ -211,7 +215,7 @@
           )
         }
 
-        assertResponse {
+        await assertResponse {
           """
           https://www.pointfree.co/
           """
@@ -247,9 +251,9 @@
           line: UInt = #line,
           column: UInt = #column
         ) async throws {
-          assertInlineSnapshot(
+          await assertInlineSnapshot(
             of: value(),
-            as: .dump,
+            as: .dump(),
             syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
               trailingClosureLabel: "is",
               trailingClosureOffset: 1
@@ -273,13 +277,13 @@
         }
       }
 
-      @Test func nestedInClosureFunction() {
-        func withDependencies(operation: () -> Void) {
-          operation()
+      @Test func nestedInClosureFunction() async {
+        func withDependencies(operation: () async -> Void) async {
+          await operation()
         }
 
-        withDependencies {
-          assertInlineSnapshot(of: "Hello", as: .dump) {
+        await withDependencies {
+          await assertInlineSnapshot(of: "Hello", as: .dump()) {
             """
             - "Hello"
 
@@ -288,8 +292,8 @@
         }
       }
 
-      @Test func carriageReturnInlineSnapshot() {
-        assertInlineSnapshot(of: "This is a line\r\nAnd this is a line\r\n", as: .lines) {
+      @Test func carriageReturnInlineSnapshot() async {
+        await assertInlineSnapshot(of: "This is a line\r\nAnd this is a line\r\n", as: .lines) {
           """
           This is a line\r
           And this is a line\r
@@ -298,8 +302,8 @@
         }
       }
 
-      @Test func carriageReturnRawInlineSnapshot() {
-        assertInlineSnapshot(of: "\"\"\"#This is a line\r\nAnd this is a line\r\n", as: .lines) {
+      @Test func carriageReturnRawInlineSnapshot() async {
+        await assertInlineSnapshot(of: "\"\"\"#This is a line\r\nAnd this is a line\r\n", as: .lines) {
           ##"""
           """#This is a line\##r
           And this is a line\##r
@@ -310,6 +314,7 @@
     }
   }
 
+  @MainActor
   private func assertCustomInlineSnapshot(
     of value: () -> String,
     is expected: (() -> String)? = nil,
@@ -318,10 +323,10 @@
     function: StaticString = #function,
     line: UInt = #line,
     column: UInt = #column
-  ) {
-    assertInlineSnapshot(
+  ) async {
+    await assertInlineSnapshot(
       of: value(),
-      as: .dump,
+      as: .dump(),
       syntaxDescriptor: InlineSnapshotSyntaxDescriptor(
         trailingClosureLabel: "is",
         trailingClosureOffset: 1
