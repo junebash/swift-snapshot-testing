@@ -6,36 +6,12 @@ import Foundation
   import SwiftSyntax
   import SwiftSyntaxBuilder
   import XCTest
-
-  /// Asserts that a given value matches an inline string snapshot.
-  ///
-  /// See <doc:InlineSnapshotTesting> for more info.
-  ///
-  /// - Parameters:
-  ///   - value: A value to compare against a snapshot.
-  ///   - snapshotting: A strategy for snapshotting and comparing values.
-  ///   - message: An optional description of the assertion, for inclusion in test results.
-  ///   - isRecording: Whether or not to record a new reference.
-  ///   - timeout: The amount of time a snapshot must be generated in.
-  ///   - syntaxDescriptor: An optional description of where the snapshot is inlined. This parameter
-  ///     should be omitted unless you are writing a custom helper that calls this function under
-  ///     the hood. See ``InlineSnapshotSyntaxDescriptor`` for more.
-  ///   - expected: An optional closure that returns a previously generated snapshot. When omitted,
-  ///     the library will automatically write a snapshot into your test file at the call sight of
-  ///     the assertion.
-  ///   - fileID: The file ID in which failure occurred. Defaults to the file ID of the test case in
-  ///     which this function was called.
-  ///   - file: The file in which failure occurred. Defaults to the file path of the test case in
-  ///     which this function was called.
-  ///   - function: The function where the assertion occurs. The default is the name of the test
-  ///     method where you call this function.
-  ///   - line: The line number on which failure occurred. Defaults to the line number on which this
-  ///     function was called.
-  ///   - column: The column on which failure occurred. Defaults to the column on which this
-  ///     function was called.
-  public func assertInlineSnapshot<Value>(
-    of value: @autoclosure () throws -> Value?,
-    as snapshotting: Snapshotting<Value, String>,
+#else
+  @available(*, unavailable, message: "'assertInlineSnapshot' requires 'swift-syntax' >= 509.0.0")
+  @MainActor
+  public func assertInlineSnapshot<S: SnapshotStrategy>(
+    of value: @autoclosure () throws -> S.Value?,
+    as strategy: S,
     message: @autoclosure () -> String = "",
     record: SnapshotTestingConfiguration.Record? = nil,
     timeout: TimeInterval = 5,
@@ -46,169 +22,7 @@ import Foundation
     function: StaticString = #function,
     line: UInt = #line,
     column: UInt = #column
-  ) {
-    let record = record ?? SnapshotTestingConfiguration.current?.record ?? _record
-    withSnapshotTesting(record: record) {
-      let _: Void = installTestObserver
-      do {
-        var actual: String?
-        let expectation = XCTestExpectation()
-        if let value = try value() {
-          snapshotting.snapshot(value).run {
-            actual = $0
-            expectation.fulfill()
-          }
-          switch XCTWaiter.wait(for: [expectation], timeout: timeout) {
-          case .completed:
-            break
-          case .timedOut:
-            recordIssue(
-              """
-              Exceeded timeout of \(timeout) seconds waiting for snapshot.
-
-              This can happen when an asynchronously loaded value (like a network response) has not \
-              loaded. If a timeout is unavoidable, consider setting the "timeout" parameter of
-              "assertInlineSnapshot" to a higher value.
-              """,
-              fileID: fileID,
-              filePath: filePath,
-              line: line,
-              column: column
-            )
-            return
-          case .incorrectOrder, .interrupted, .invertedFulfillment:
-            recordIssue(
-              "Couldn't snapshot value",
-              fileID: fileID,
-              filePath: filePath,
-              line: line,
-              column: column
-            )
-            return
-          @unknown default:
-            recordIssue(
-              "Couldn't snapshot value",
-              fileID: fileID,
-              filePath: filePath,
-              line: line,
-              column: column
-            )
-            return
-          }
-        }
-        let expected = expected?()
-        func recordSnapshot() {
-          // NB: Write snapshot state before calling `XCTFail` in case `continueAfterFailure = false`
-          inlineSnapshotState.withLock { [actual] in
-            $0[File(path: filePath), default: []].append(
-              InlineSnapshot(
-                expected: expected,
-                actual: actual,
-                wasRecording: record == .all || record == .failed,
-                syntaxDescriptor: syntaxDescriptor,
-                function: "\(function)",
-                line: line,
-                column: column
-              )
-            )
-          }
-        }
-        guard
-          record != .all,
-          (record != .missing && record != .failed) || expected != nil
-        else {
-          recordSnapshot()
-
-          var failure: String
-          if syntaxDescriptor.trailingClosureLabel
-            == InlineSnapshotSyntaxDescriptor.defaultTrailingClosureLabel
-          {
-            failure = "Automatically recorded a new snapshot."
-          } else {
-            failure = """
-              Automatically recorded a new snapshot for "\(syntaxDescriptor.trailingClosureLabel)".
-              """
-          }
-          if let difference = snapshotting.diffing.diffV2(expected ?? "", actual ?? "")?.0 {
-            failure += " Difference: …\n\n\(difference.indenting(by: 2))"
-          }
-          recordIssue(
-            """
-            \(failure)
-
-            Re-run "\(function)" to assert against the newly-recorded snapshot.
-            """,
-            fileID: fileID,
-            filePath: filePath,
-            line: line,
-            column: column
-          )
-          return
-        }
-
-        guard let expected
-        else {
-          recordIssue(
-            """
-            No expected value to assert against.
-            """,
-            fileID: fileID,
-            filePath: filePath,
-            line: line,
-            column: column
-          )
-          return
-        }
-        guard
-          let difference = snapshotting.diffing.diffV2(expected, actual ?? "")?.0
-        else { return }
-
-        let message = message()
-        var failureMessage = """
-          \(message.isEmpty ? "Snapshot did not match. Difference: …" : message)
-
-          \(difference.indenting(by: 2))
-          """
-
-        if record == .failed {
-          recordSnapshot()
-          failureMessage += "\n\nA new snapshot was automatically recorded."
-        }
-
-        syntaxDescriptor.fail(
-          failureMessage,
-          fileID: fileID,
-          file: filePath,
-          line: line,
-          column: column
-        )
-      } catch {
-        recordIssue(
-          "Threw error: \(error)",
-          fileID: fileID,
-          filePath: filePath,
-          line: line,
-          column: column
-        )
-      }
-    }
-  }
-#else
-  @available(*, unavailable, message: "'assertInlineSnapshot' requires 'swift-syntax' >= 509.0.0")
-  public func assertInlineSnapshot<Value>(
-    of value: @autoclosure () throws -> Value?,
-    as snapshotting: Snapshotting<Value, String>,
-    message: @autoclosure () -> String = "",
-    record isRecording: Bool? = nil,
-    timeout: TimeInterval = 5,
-    syntaxDescriptor: InlineSnapshotSyntaxDescriptor = InlineSnapshotSyntaxDescriptor(),
-    matches expected: (() -> String)? = nil,
-    fileID: StaticString = #fileID,
-    file filePath: StaticString = #filePath,
-    function: StaticString = #function,
-    line: UInt = #line,
-    column: UInt = #column
-  ) {
+  ) async where S.Format == String {
     fatalError()
   }
 #endif
@@ -218,7 +32,7 @@ import Foundation
 /// Provide this structure when defining custom snapshot functions that call
 /// ``assertInlineSnapshot(of:as:message:record:timeout:syntaxDescriptor:matches:file:function:line:column:)``
 /// under the hood.
-public struct InlineSnapshotSyntaxDescriptor: Hashable {
+public struct InlineSnapshotSyntaxDescriptor: Hashable, Sendable {
   /// The default label describing an inline snapshot.
   public static let defaultTrailingClosureLabel = "matches"
 
@@ -342,7 +156,7 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable {
     }
   }()
 
-  @_spi(Internals) public struct File: Hashable {
+  @_spi(Internals) public struct File: Hashable, Sendable {
     public let path: StaticString
     public static func == (lhs: Self, rhs: Self) -> Bool {
       "\(lhs.path)" == "\(rhs.path)"
@@ -363,17 +177,17 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable {
   }
 
   @_spi(Internals)
-  public var inlineSnapshotState: LockIsolated<[File: [InlineSnapshot]]> = LockIsolated([:])
+  public let inlineSnapshotState: LockIsolated<[File: [InlineSnapshot]]> = LockIsolated([:])
 
-  private struct TestSource {
+  private struct TestSource: @unchecked Sendable {
     let source: String
     let sourceFile: SourceFileSyntax
     let sourceLocationConverter: SourceLocationConverter
   }
 
   private func testSource(file: File) throws -> TestSource {
-    guard let testSource = testSourceCache[file]
-    else {
+    try testSourceCache.withLock { cache in
+      if let cached = cache[file] { return cached }
       let filePath = "\(file.path)"
       let source = try String(contentsOfFile: filePath)
       let sourceFile = Parser.parse(source: source)
@@ -383,13 +197,12 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable {
         sourceFile: sourceFile,
         sourceLocationConverter: sourceLocationConverter
       )
-      testSourceCache[file] = testSource
+      cache[file] = testSource
       return testSource
     }
-    return testSource
   }
 
-  private var testSourceCache: [File: TestSource] = [:]
+  private let testSourceCache: LockIsolated<[File: TestSource]> = LockIsolated([:])
 
   private func writeInlineSnapshots() {
     inlineSnapshotState.withLock { inlineSnapshotState in

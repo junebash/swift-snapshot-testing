@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(SwiftSyntax509)
-  import SnapshotTestingAsync
+  import SnapshotTesting
   import SwiftParser
   import SwiftSyntax
   import SwiftSyntaxBuilder
@@ -38,7 +38,7 @@ import Foundation
     of value: @autoclosure () throws -> S.Value?,
     as strategy: S,
     message: @autoclosure () -> String = "",
-    record: SnapshotTestingAsync.SnapshotTestingConfiguration.Record? = nil,
+    record: SnapshotTestingConfiguration.Record? = nil,
     timeout: TimeInterval = 5,
     syntaxDescriptor: InlineSnapshotSyntaxDescriptor = InlineSnapshotSyntaxDescriptor(),
     matches expected: (() -> String)? = nil,
@@ -48,33 +48,33 @@ import Foundation
     line: UInt = #line,
     column: UInt = #column
   ) async where S.Format == String {
-    await SnapshotTestingAsync.withSnapshotTesting(record: record) {
+    await withSnapshotTesting(record: record) {
       // `withSnapshotTesting` resolved the full fallback chain into the task-local.
-      let record = SnapshotTestingAsync.SnapshotTestingConfiguration.current?.record ?? .missing
+      let record = SnapshotTestingConfiguration.current?.record ?? .missing
       let _: Void = installTestObserver
       do {
-        var actual: String?
-        if let value = try value() {
-          let capture = SnapshotCaptureContext(timeout: timeout)
-          actual = await SnapshotCaptureContext.$current.withValue(capture) {
-            await strategy.snapshot(of: value)
-          }
-          if capture.timedOut {
-            recordIssue(
-              """
-              Exceeded timeout of \(timeout) seconds waiting for snapshot.
+        let capture = SnapshotCaptureContext(timeout: timeout)
+        let actual: String? = try await SnapshotCaptureContext.$current.withValue(capture) {
+          // Evaluated inside the closure so the value stays in a disconnected region and can
+          // be sent into the strategy.
+          guard let value = try value() else { return nil }
+          return await strategy.snapshot(of: value)
+        }
+        if capture.timedOut {
+          recordIssue(
+            """
+            Exceeded timeout of \(timeout) seconds waiting for snapshot.
 
-              This can happen when an asynchronously loaded value (like a network response) has not \
-              loaded. If a timeout is unavoidable, consider setting the "timeout" parameter of
-              "assertInlineSnapshot" to a higher value.
-              """,
-              fileID: fileID,
-              filePath: filePath,
-              line: line,
-              column: column
-            )
-            return
-          }
+            This can happen when an asynchronously loaded value (like a network response) has not \
+            loaded. If a timeout is unavoidable, consider setting the "timeout" parameter of
+            "assertInlineSnapshot" to a higher value.
+            """,
+            fileID: fileID,
+            filePath: filePath,
+            line: line,
+            column: column
+          )
+          return
         }
         let expected = expected?()
         func recordSnapshot() {

@@ -1,5 +1,9 @@
 import Foundation
 
+// The Myers-style line diff used by text diffing. Ported verbatim from the legacy
+// `SnapshotTesting/Diff.swift` — it is pure Foundation and produces the exact same patch output,
+// which is what keeps text reference files byte-identical across the migration.
+
 struct Difference<A> {
   enum Which {
     case first

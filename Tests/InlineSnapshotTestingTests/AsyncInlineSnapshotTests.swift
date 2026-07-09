@@ -1,6 +1,6 @@
 import Foundation
 import InlineSnapshotTesting
-import SnapshotTestingAsync
+import SnapshotTesting
 import XCTest
 
 /// Coverage for the async `assertInlineSnapshot` overload, which captures through the

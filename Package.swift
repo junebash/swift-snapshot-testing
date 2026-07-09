@@ -23,12 +23,6 @@ let package = Package(
       name: "SnapshotTestingCustomDump",
       targets: ["SnapshotTestingCustomDump"]
     ),
-    // Transient home for the native-async, protocol-based engine during the migration.
-    // Collapsed into `SnapshotTesting` at the flip; see the migration plan.
-    .library(
-      name: "SnapshotTestingAsync",
-      targets: ["SnapshotTestingAsync"]
-    ),
   ],
   dependencies: [
     .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3"),
@@ -41,7 +35,8 @@ let package = Package(
     .testTarget(
       name: "SnapshotTestingTests",
       dependencies: [
-        "SnapshotTesting"
+        "SnapshotTesting",
+        "SnapshotTestingCustomDump",
       ],
       exclude: [
         "__Fixtures__",
@@ -52,7 +47,6 @@ let package = Package(
       name: "InlineSnapshotTesting",
       dependencies: [
         "SnapshotTesting",
-        "SnapshotTestingAsync",
         "SnapshotTestingCustomDump",
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -69,25 +63,9 @@ let package = Package(
       name: "SnapshotTestingCustomDump",
       dependencies: [
         "SnapshotTesting",
-        "SnapshotTestingAsync",
         .product(name: "CustomDump", package: "swift-custom-dump"),
       ]
     ),
-    // The native-async, protocol-based engine. Built under Swift 6 language mode
-    // while the legacy `SnapshotTesting` target stays on v5 and green. At the
-    // Phase 4 flip these sources move into `SnapshotTesting` and this target is removed.
-    .target(
-      name: "SnapshotTestingAsync",
-      swiftSettings: [.swiftLanguageMode(.v6)]
-    ),
-    .testTarget(
-      name: "SnapshotTestingAsyncTests",
-      dependencies: [
-        "SnapshotTestingAsync",
-        "SnapshotTestingCustomDump",
-      ],
-      swiftSettings: [.swiftLanguageMode(.v6)]
-    ),
   ],
-  swiftLanguageModes: [.v5]
+  swiftLanguageModes: [.v6]
 )
