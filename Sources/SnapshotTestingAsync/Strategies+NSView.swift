@@ -192,20 +192,23 @@
         }
       } else if let wkWebView = self as? WKWebView {
         if wkWebView.isLoading {
-          await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            _ = WebViewLoadObserver(wkWebView) { continuation.resume() }
+          let loaded: Void? = await awaitCallback { finish in
+            _ = WebViewLoadObserver(wkWebView) { finish(()) }
           }
+          // Timed out waiting for the load; the capture context is flagged, so the assertion
+          // reports the timeout regardless of what renders below.
+          if loaded == nil { return nil }
         }
-        return await withCheckedContinuation { (continuation: CheckedContinuation<NSImage?, Never>) in
+        return await awaitCallback { finish in
           inWindow {
             guard wkWebView.frame.width != 0, wkWebView.frame.height != 0 else {
-              continuation.resume(returning: NSImage())
+              finish(NSImage())
               return
             }
             let configuration = WKSnapshotConfiguration()
             configuration.afterScreenUpdates = false
             wkWebView.takeSnapshot(with: configuration) { image, _ in
-              continuation.resume(returning: image)
+              finish(image)
             }
           }
         }
