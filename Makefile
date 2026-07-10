@@ -1,31 +1,30 @@
+SCHEME = swift-snapshot-testing-Package
+PLATFORM_IOS = iOS Simulator,name=iPhone 17 Pro,OS=26.5
+
+test-swift:
+	swift test
+
+test-macos:
+	set -o pipefail && \
+	xcodebuild test \
+		-scheme $(SCHEME) \
+		-destination platform="macOS"
+
+# References were recorded on this exact simulator; other devices/OS versions will
+# produce pixel drift.
+test-ios:
+	set -o pipefail && \
+	xcodebuild test \
+		-scheme $(SCHEME) \
+		-destination platform="$(PLATFORM_IOS)"
+
 test-linux:
 	docker run \
 		--rm \
 		-v "$(PWD):$(PWD)" \
 		-w "$(PWD)" \
-		swift:5.7-focal \
+		swift:6.2 \
 		bash -c 'swift test'
-
-test-macos:
-	set -o pipefail && \
-	xcodebuild test \
-		-scheme SnapshotTesting \
-		-destination platform="macOS" \
-
-test-ios:
-	set -o pipefail && \
-	xcodebuild test \
-		-scheme SnapshotTesting \
-		-destination platform="iOS Simulator,name=iPhone 11 Pro Max,OS=13.3"
-
-test-swift:
-	swift test
-
-test-tvos:
-	set -o pipefail && \
-	xcodebuild test \
-		-scheme SnapshotTesting \
-		-destination platform="tvOS Simulator,name=Apple TV 4K,OS=13.3"
 
 format:
 	swift format \
@@ -34,4 +33,4 @@ format:
 		--recursive \
 		./Package.swift ./Sources ./Tests
 
-test-all: test-linux test-macos test-ios
+test-all: test-swift test-ios
