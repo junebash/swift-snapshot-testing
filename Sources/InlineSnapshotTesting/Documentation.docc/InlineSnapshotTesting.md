@@ -8,7 +8,7 @@ Powerfully convenient snapshot testing.
 alongside the test files. This makes for compact test cases with single line assertions...
 
 ```swift
-assertSnapshot(of: value, as: .json)
+await assertSnapshot(of: value, as: .json())
 ```
 
 ...but can make verification more cumbersome: one must find the corresponding file in order to
@@ -29,14 +29,17 @@ snapshot sit next to each other in the assertion. One can `import InlineSnapshot
 the above assertion as:
 
 ```swift
-assertInlineSnapshot(of: value, as: .json)
+await assertInlineSnapshot(of: value, as: .json())
 ```
+
+Like `assertSnapshot`, `assertInlineSnapshot` is `@MainActor` and `async`, so it must be called from
+a `@MainActor` (or otherwise main-actor-isolated) `async` test.
 
 And when the test is run, it will automatically insert the snapshot as a trailing closure to be used
 by future test runs, and fail:
 
 ```swift
-assertInlineSnapshot(of: value, as: .json) {  // ❌
+await assertInlineSnapshot(of: value, as: .json()) {  // ❌
   """
   {
     "id": 42,
@@ -68,7 +71,7 @@ Re-run "testMySnapshot" to test against the newly-recorded snapshot.
 
 ### Essentials
 
-- ``assertInlineSnapshot(of:as:message:record:timeout:syntaxDescriptor:matches:file:function:line:column:)``
+- ``assertInlineSnapshot(of:as:message:record:timeout:syntaxDescriptor:matches:fileID:file:function:line:column:)``
 
 ### Writing a custom helper
 
