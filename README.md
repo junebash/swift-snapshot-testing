@@ -1,16 +1,32 @@
 # 📸 SnapshotTesting
 
-[![CI](https://github.com/pointfreeco/swift-snapshot-testing/workflows/CI/badge.svg)](https://actions-badge.atrox.dev/pointfreeco/swift-snapshot-testing/goto)
-[![Slack](https://img.shields.io/badge/slack-chat-informational.svg?label=Slack&logo=slack)](http://pointfree.co/slack-invite)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fpointfreeco%2Fswift-snapshot-testing%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/pointfreeco/swift-snapshot-testing)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fpointfreeco%2Fswift-snapshot-testing%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/pointfreeco/swift-snapshot-testing)
+[![CI](https://github.com/junebash/swift-snapshot-testing/actions/workflows/ci.yml/badge.svg)](https://github.com/junebash/swift-snapshot-testing/actions/workflows/ci.yml)
 
 Delightful Swift snapshot testing.
 
+> **This is a personal fork.** This repository is [June Bash](https://github.com/junebash)'s
+> hard fork of [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),
+> the excellent library created by [Point-Free](https://www.pointfree.co). All credit for the
+> original design goes to them; see [Learn More](#learn-more) below. This fork has diverged
+> significantly from upstream and is **not** a drop-in replacement:
+>
+>   - The public API is **async-only**. `assertSnapshot`, `assertSnapshots`, `verifySnapshot`, and
+>     `assertInlineSnapshot` are all `@MainActor` and `async` — every call site must `await`. There
+>     is no synchronous overload.
+>   - The closure-based `Snapshotting<Value, Format>` witness type is gone, replaced by real Swift
+>     protocols (`SnapshotStrategy`, `DiffStrategy`) with native structured-concurrency support.
+>   - The toolchain floor is **Swift 6.2+**, built in the Swift 6 language mode.
+>
+> If you depend on the upstream, synchronous API, use
+> [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing)
+> instead.
+
 ## Usage
 
-Once [installed](#installation), _no additional configuration is required_. You can import the
-`SnapshotTesting` module and call the `assertSnapshot` function.
+Once [installed](#installation), _no additional configuration is required_. Import the
+`SnapshotTesting` module and `await` the `assertSnapshot` function from an async test.
+
+With [Swift Testing](https://developer.apple.com/documentation/testing):
 
 ``` swift
 import SnapshotTesting
@@ -18,10 +34,26 @@ import Testing
 
 @MainActor
 struct MyViewControllerTests {
-  @Test func myViewController() {
+  @Test func myViewController() async {
     let vc = MyViewController()
 
-    assertSnapshot(of: vc, as: .image)
+    await assertSnapshot(of: vc, as: .image)
+  }
+}
+```
+
+Or with XCTest:
+
+``` swift
+import SnapshotTesting
+import XCTest
+
+final class MyViewControllerTests: XCTestCase {
+  @MainActor
+  func testMyViewController() async {
+    let vc = MyViewController()
+
+    await assertSnapshot(of: vc, as: .image)
   }
 }
 ```
@@ -44,13 +76,13 @@ You can record a new reference by customizing snapshots inline with the assertio
 
 ```swift
 // Record just this one snapshot
-assertSnapshot(of: vc, as: .image, record: .all)
+await assertSnapshot(of: vc, as: .image, record: .all)
 
 // Record all snapshots in a scope:
-withSnapshotTesting(record: .all) {
-  assertSnapshot(of: vc1, as: .image)
-  assertSnapshot(of: vc2, as: .image)
-  assertSnapshot(of: vc3, as: .image)
+await withSnapshotTesting(record: .all) {
+  await assertSnapshot(of: vc1, as: .image)
+  await assertSnapshot(of: vc2, as: .image)
+  await assertSnapshot(of: vc3, as: .image)
 }
 
 // Record all snapshot failures in a Swift Testing suite:
@@ -77,25 +109,25 @@ means that a view or view controller can be tested against an image representati
 textual representation of its properties and subview hierarchy.
 
 ``` swift
-assertSnapshot(of: vc, as: .image)
-assertSnapshot(of: vc, as: .recursiveDescription)
+await assertSnapshot(of: vc, as: .image)
+await assertSnapshot(of: vc, as: .recursiveDescription)
 ```
 
-View testing is highly configurable. You can override trait collections (for specific size classes
-and content size categories) and generate device-agnostic snapshots, all from a single simulator.
+View controller image and recursive-description snapshots are configurable with device presets,
+sizes, and trait collections, so you can generate device-agnostic snapshots from a single simulator.
 
 ``` swift
-assertSnapshot(of: vc, as: .image(on: .iPhoneSe))
-assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneSe))
+await assertSnapshot(of: vc, as: .image(on: .iPhoneSe))
+await assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneSe))
 
-assertSnapshot(of: vc, as: .image(on: .iPhoneSe(.landscape)))
-assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneSe(.landscape)))
+await assertSnapshot(of: vc, as: .image(on: .iPhoneSe(.landscape)))
+await assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneSe(.landscape)))
 
-assertSnapshot(of: vc, as: .image(on: .iPhoneX))
-assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneX))
+await assertSnapshot(of: vc, as: .image(on: .iPhoneX))
+await assertSnapshot(of: vc, as: .recursiveDescription(on: .iPhoneX))
 
-assertSnapshot(of: vc, as: .image(on: .iPadMini(.portrait)))
-assertSnapshot(of: vc, as: .recursiveDescription(on: .iPadMini(.portrait)))
+await assertSnapshot(of: vc, as: .image(on: .iPadMini(.portrait)))
+await assertSnapshot(of: vc, as: .recursiveDescription(on: .iPadMini(.portrait)))
 ```
 
 > **Warning**
@@ -108,7 +140,7 @@ available snapshot strategies to choose from.
 For example, you can snapshot test URL requests (_e.g._, those that your API client prepares).
 
 ``` swift
-assertSnapshot(of: urlRequest, as: .raw)
+await assertSnapshot(of: urlRequest, as: .raw)
 // POST http://localhost:8080/account
 // Cookie: pf_session={"userId":"1"}
 //
@@ -118,14 +150,14 @@ assertSnapshot(of: urlRequest, as: .raw)
 And you can snapshot test `Encodable` values against their JSON _and_ property list representations.
 
 ``` swift
-assertSnapshot(of: user, as: .json)
+await assertSnapshot(of: user, as: .json())
 // {
 //   "bio" : "Blobbed around the world.",
 //   "id" : 1,
 //   "name" : "Blobby"
 // }
 
-assertSnapshot(of: user, as: .plist)
+await assertSnapshot(of: user, as: .plist())
 // <?xml version="1.0" encoding="UTF-8"?>
 // <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
 //  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -145,7 +177,7 @@ In fact, _any_ value can be snapshot-tested by default using its
 [mirror](https://developer.apple.com/documentation/swift/mirror)!
 
 ``` swift
-assertSnapshot(of: user, as: .dump)
+await assertSnapshot(of: user, as: .dump())
 // ▿ User
 //   - bio: "Blobbed around the world."
 //   - id: 1
@@ -154,43 +186,88 @@ assertSnapshot(of: user, as: .dump)
 
 If your data can be represented as an image, text, or data, you can write a snapshot test for it!
 
-## Documentation
+## A tour of the built-in strategies
 
-The latest documentation is available
-[here](https://swiftpackageindex.com/pointfreeco/swift-snapshot-testing/main/documentation/snapshottesting).
+  - **Views and layers** (`UIView`/`UIViewController` on iOS/tvOS, `NSView`/`NSViewController` on
+    macOS, `CALayer`): `.image` and `.recursiveDescription`; `UIViewController` additionally has
+    `.hierarchy`. Every image strategy takes `precision`/`perceptualPrecision` overrides; on
+    iOS/tvOS they additionally take `size` and `traits` overrides, and `UIViewController`'s
+    `.image`/`.recursiveDescription` also take an `on:` device config — macOS has no trait
+    collection or device-config equivalent. A `WKWebView` nested anywhere in the hierarchy is
+    awaited automatically before the image is captured — this path is only expected to work in an
+    app-hosted test runner, not a library/framework test bundle.
+  - **SwiftUI views** (iOS/tvOS): `.image(layout:)`, rendered through a `UIHostingController`, with
+    `.sizeThatFits`, `.fixed(width:height:)`, or `.device(config:)` layout options.
+  - **SceneKit and SpriteKit** (`SCNScene`, `SKScene`): `.image(size:)`. Output is GPU/machine
+    dependent, so recorded references don't transfer between machines.
+  - **Paths** (`CGPath`, `UIBezierPath`/`NSBezierPath`): `.image` and `.elementsDescription`.
+  - **`URLRequest`**: `.raw` (and `.raw(pretty:)`) for the request line, headers, and body; `.curl`
+    for an equivalent cURL invocation.
+  - **`Encodable` values**: `.json()`/`.json(_:)` and `.plist()`/`.plist(_:)`, each optionally taking
+    a custom `JSONEncoder`/`PropertyListEncoder`.
+  - **Any value**: `.description()` (via `String(describing:)`), `.dump()` (a sanitized, sorted
+    `Mirror` dump), and `.json()` for any JSON-object-representable value.
+  - **`String`**: `.lines`, comparing by line diff.
+  - **`Data`**: `.data`, comparing by byte equality.
+  - **Functions over `CaseIterable` inputs**: `.func(into:)` feeds every case into a
+    `(Input) -> Output` function and records a CSV of input/output pairs.
+  - **`customDump()`**, from the separate `SnapshotTestingCustomDump` product, renders any value with
+    [swift-custom-dump](https://github.com/pointfreeco/swift-custom-dump)'s `customDump`.
+
+You can also [write your own strategies](#writing-your-own-strategies) by conforming to
+`SnapshotStrategy`, or derive new ones from existing strategies with `pullback`/`asyncPullback`.
+
+## Writing your own strategies
+
+A `SnapshotStrategy` knows how to render a `Value` into a diffable `Format`, and pairs that with a
+`DiffStrategy` that knows how to serialize, deserialize, and compare that `Format`:
+
+```swift
+public protocol SnapshotStrategy<Value, Format> {
+  associatedtype Value
+  associatedtype Format
+  associatedtype Diffing: DiffStrategy where Diffing.Value == Format
+
+  var pathExtension: String? { get }
+  var diffing: Diffing { get }
+
+  nonisolated(nonsending) func snapshot(of value: sending Value) async -> sending Format
+}
+```
+
+`snapshot(of:)` requires `nonisolated(nonsending)`, meaning it runs on the *caller's* executor rather
+than hopping to a fixed one. Most view/image strategies are `@MainActor` witnesses of this
+requirement: when the assertion is called from `@MainActor` code (as it always is), the capture's
+synchronous prefix runs eagerly in the caller's run-loop turn, before any queued main-actor work can
+mutate the value — and the witness only truly suspends for a genuinely asynchronous capture (like a
+web view waiting to finish loading).
+
+Rather than writing a strategy from scratch, you can often derive one from an existing strategy:
+
+```swift
+extension SnapshotStrategy where Self == _Pullback<MyModel, LinesStrategy> {
+  static var summary: _Pullback<MyModel, LinesStrategy> {
+    LinesStrategy().pullback { (model: MyModel) in model.summary }
+  }
+}
+```
+
+Use `asyncPullback` instead of `pullback` when the transform itself needs to `await` (for example,
+when it renders a view that suspends on a web or scene subview before handing off to a base
+strategy).
 
 ## Installation
 
-### Xcode
-
-> **Warning**
-> By default, Xcode will try to add the SnapshotTesting package to your project's main
-> application/framework target. Please ensure that SnapshotTesting is added to a _test_ target
-> instead, as documented in the last step, below.
-
- 1. From the **File** menu, navigate through **Swift Packages** and select
-    **Add Package Dependency…**.
- 2. Enter package repository URL: `https://github.com/pointfreeco/swift-snapshot-testing`.
- 3. Confirm the version and let Xcode resolve the package.
- 4. On the final dialog, update SnapshotTesting's **Add to Target** column to a test target that
-    will contain snapshot tests (if you have more than one test target, you can later add
-    SnapshotTesting to them by manually linking the library in its build phase).
-
-### Swift Package Manager
-
-If you want to use SnapshotTesting in any other project that uses
-[SwiftPM](https://swift.org/package-manager/), add the package as a dependency in `Package.swift`:
+SnapshotTesting is distributed via the [Swift Package Manager](https://swift.org/package-manager/).
+Add it as a dependency in your `Package.swift`:
 
 ```swift
 dependencies: [
-  .package(
-    url: "https://github.com/pointfreeco/swift-snapshot-testing",
-    from: "1.12.0"
-  ),
+  .package(url: "https://github.com/junebash/swift-snapshot-testing", branch: "main"),
 ]
 ```
 
-Next, add `SnapshotTesting` as a dependency of your test target:
+Then add the products you need to your test target:
 
 ```swift
 targets: [
@@ -200,109 +277,60 @@ targets: [
     dependencies: [
       "MyApp",
       .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+      // Optionally, for inline snapshots:
+      .product(name: "InlineSnapshotTesting", package: "swift-snapshot-testing"),
+      // Optionally, for a `customDump()` strategy powered by swift-custom-dump:
+      .product(name: "SnapshotTestingCustomDump", package: "swift-snapshot-testing"),
     ]
   )
 ]
 ```
 
+Or, in Xcode, use **File** → **Add Package Dependencies…** and enter
+`https://github.com/junebash/swift-snapshot-testing`. Make sure to add the packages to a _test_
+target, not your app or framework target.
+
 ## Features
 
-  - [**Dozens of snapshot strategies**][available-strategies]. Snapshot
-    testing isn't just for `UIView`s and `CALayer`s. Write snapshots against _any_ value.
-  - [**Write your own snapshot strategies**][defining-strategies].
-    If you can convert it to an image, string, data, or your own diffable format, you can snapshot
-    test it! Build your own snapshot strategies from scratch or transform existing ones.
+  - **Dozens of snapshot strategies.** Snapshot testing isn't just for `UIView`s and `CALayer`s.
+    Write snapshots against _any_ value — see the [strategy tour](#a-tour-of-the-built-in-strategies)
+    above.
+  - **Write your own snapshot strategies.** If you can convert it to an image, string, data, or your
+    own diffable format, you can snapshot test it. Build strategies from scratch by conforming to
+    `SnapshotStrategy`, or transform existing ones with `pullback`/`asyncPullback`.
   - **No configuration required.** Don't fuss with scheme settings and environment variables.
     Snapshots are automatically saved alongside your tests.
-  - **More hands-off.** New snapshots are recorded whether `isRecording` mode is `true` or not.
-  - **Subclass-free.** Assert from any XCTest case or Quick spec.
-  - **Device-agnostic snapshots.** Render views and view controllers for specific devices and trait
-    collections from a single simulator.
-  - **First-class Xcode support.** Image differences are captured as XCTest attachments. Text
-    differences are rendered in inline error messages.
+  - **More hands-off.** New snapshots are recorded whether recording is on or not.
+  - **Structured concurrency, not run-loop hacks.** Assertions are `async` all the way down. There's
+    no synchronous entry point that blocks a thread and spins the run loop to fake it.
+  - **Device-agnostic snapshots.** Render view controllers for specific devices and trait collections
+    from a single simulator.
+  - **First-class Xcode support.** Image differences are captured as test attachments (via Swift
+    Testing's `Attachment` API or `XCTAttachment`, depending on the test framework). Text differences
+    are rendered in inline error messages.
   - **Supports any platform that supports Swift.** Write snapshot tests for iOS, Linux, macOS, and
     tvOS.
   - **SceneKit, SpriteKit, and WebKit support.** Most snapshot testing libraries don't support these
     view subclasses.
-  - **`Codable` support**. Snapshot encodable data structures into their JSON and property list
+  - **`Codable` support.** Snapshot encodable data structures into their JSON and property list
     representations.
-  - **Custom diff tool integration**. Configure failure messages to print diff commands for
+  - **Custom diff tool integration.** Configure failure messages to print diff commands for
     [Kaleidoscope](https://kaleidoscope.app) or your diff tool of choice.
     ``` swift
-    SnapshotTesting.diffToolCommand = { "ksdiff \($0) \($1)" }
+    await withSnapshotTesting(diffTool: .ksdiff) {
+      // ...
+    }
     ```
-
-[available-strategies]: https://swiftpackageindex.com/pointfreeco/swift-snapshot-testing/main/documentation/snapshottesting/snapshotting
-[defining-strategies]: https://swiftpackageindex.com/pointfreeco/swift-snapshot-testing/main/documentation/snapshottesting/customstrategies
-
-## Plug-ins
-
-  - [AccessibilitySnapshot](https://github.com/cashapp/AccessibilitySnapshot) adds easy regression
-    testing for iOS accessibility.
-    
-  - [AccessibilitySnapshotColorBlindness](https://github.com/Sherlouk/AccessibilitySnapshotColorBlindness)
-    adds snapshot strategies for color blindness simulation on iOS views, view controllers and images.
-
-  - [GRDBSnapshotTesting](https://github.com/SebastianOsinski/GRDBSnapshotTesting) adds snapshot
-    strategy for testing SQLite database migrations made with [GRDB](https://github.com/groue/GRDB.swift).
-
-  - [Nimble-SnapshotTesting](https://github.com/tahirmt/Nimble-SnapshotTesting) adds 
-    [Nimble](https://github.com/Quick/Nimble) matchers for SnapshotTesting to be used by Swift
-    Package Manager.
-
-  - [Prefire](https://github.com/BarredEwe/Prefire) generating Snapshot Tests via
-    [Swift Package Plugins](https://github.com/apple/swift-package-manager/blob/main/Documentation/Plugins.md)
-    using SwiftUI `Preview`
-  
-  - [PreviewSnapshots](https://github.com/doordash-oss/swiftui-preview-snapshots) share `View`
-    configurations between SwiftUI Previews and snapshot tests and generate several snapshots with a
-    single test assertion.
-
-  - [swift-html](https://github.com/pointfreeco/swift-html) is a Swift DSL for type-safe,
-    extensible, and transformable HTML documents and includes an `HtmlSnapshotTesting` module to
-    snapshot test its HTML documents.
-
-  - [swift-snapshot-testing-nimble](https://github.com/Killectro/swift-snapshot-testing-nimble) adds
-    [Nimble](https://github.com/Quick/Nimble) matchers for SnapshotTesting.
-
-  - [swift-snapshot-testing-stitch](https://github.com/Sherlouk/swift-snapshot-testing-stitch/) adds
-    the ability to stitch multiple UIView's or UIViewController's together in a single test.
-
-  - [SnapshotTestingDump](https://github.com/tahirmt/swift-snapshot-testing-dump) Adds support to
-    use [swift-custom-dump](https://github.com/pointfreeco/swift-custom-dump/) by using `customDump`
-    strategy for `Any`
-
-  - [SnapshotTestingHEIC](https://github.com/alexey1312/SnapshotTestingHEIC) adds image support
-  using the HEIC storage format which reduces file sizes in comparison to PNG.
-
-  - [SnapshotVision](https://github.com/gregersson/swift-snapshot-testing-vision) adds snapshot
-    strategy for text recognition on views and images. Uses Apples Vision framework.
-
-Have you written your own SnapshotTesting plug-in?
-[Add it here](https://github.com/pointfreeco/swift-snapshot-testing/edit/master/README.md) and
-submit a pull request!
-
-## Related Tools
-
-  - [`iOSSnapshotTestCase`](https://github.com/uber/ios-snapshot-test-case/) helped introduce screen
-    shot testing to a broad audience in the iOS community. Experience with it inspired the creation
-    of this library.
-
-  - [Jest](https://jestjs.io) brought generalized snapshot testing to the JavaScript community with
-    a polished user experience. Several features of this library (diffing, automatically capturing
-    new snapshots) were directly influenced.
 
 ## Learn More
 
-SnapshotTesting was designed with [witness-oriented programming](https://www.pointfree.co/episodes/ep39-witness-oriented-library-design).
-
-This concept (and more) are explored thoroughly in a series of episodes on
-[Point-Free](https://www.pointfree.co), a video series exploring functional programming and Swift
+This library is a fork of [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),
+designed with [witness-oriented programming](https://www.pointfree.co/episodes/ep39-witness-oriented-library-design)
+by [Point-Free](https://www.pointfree.co), a video series exploring functional programming and Swift
 hosted by [Brandon Williams](https://twitter.com/mbrandonw) and
-[Stephen Celis](https://twitter.com/stephencelis).
-
-Witness-oriented programming and the design of this library was explored in the following
-[Point-Free](https://www.pointfree.co) episodes:
+[Stephen Celis](https://twitter.com/stephencelis). This fork has since moved from that closure-based
+witness design to protocol-based strategies with native async support, but the original library and
+its design are well worth learning from:
 
   - [Episode 33](https://www.pointfree.co/episodes/ep33-protocol-witnesses-part-1): Protocol Witnesses: Part 1
   - [Episode 34](https://www.pointfree.co/episodes/ep34-protocol-witnesses-part-1): Protocol Witnesses: Part 2
@@ -314,10 +342,17 @@ Witness-oriented programming and the design of this library was explored in the 
   - [Episode 40](https://www.pointfree.co/episodes/ep40-async-functional-refactoring): Async Functional Refactoring
   - [Episode 41](https://www.pointfree.co/episodes/ep41-a-tour-of-snapshot-testing): A Tour of Snapshot Testing 🆓
 
-<a href="https://www.pointfree.co/episodes/ep41-a-tour-of-snapshot-testing">
-  <img alt="video poster image" src="https://d3rccdn33rt8ze.cloudfront.net/episodes/0041.jpeg" width="480">
-</a>
+## Related Tools
+
+  - [`iOSSnapshotTestCase`](https://github.com/uber/ios-snapshot-test-case/) helped introduce screen
+    shot testing to a broad audience in the iOS community. Experience with it inspired the creation
+    of this library.
+
+  - [Jest](https://jestjs.io) brought generalized snapshot testing to the JavaScript community with
+    a polished user experience. Several features of this library (diffing, automatically capturing
+    new snapshots) were directly influenced.
 
 ## License
 
-This library is released under the MIT license. See [LICENSE](LICENSE) for details.
+This library, and the upstream project it's forked from, are released under the MIT license. See
+[LICENSE](LICENSE) for details.
