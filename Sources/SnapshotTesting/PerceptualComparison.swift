@@ -147,9 +147,7 @@
   // Copied from https://developer.apple.com/documentation/coreimage/ciimageprocessorkernel
   final class ThresholdImageProcessorKernel: CIImageProcessorKernel {
     static let inputThresholdKey = "thresholdValue"
-    // `MTLDevice` isn't statically `Sendable`, but Metal documents its device objects as
-    // thread-safe, and this system default device is only ever read after creation.
-    nonisolated(unsafe) static let device = MTLCreateSystemDefaultDevice()
+    static let device = MTLCreateSystemDefaultDevice()
 
     static var isSupported: Bool {
       guard let device = device else {

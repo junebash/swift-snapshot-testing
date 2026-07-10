@@ -398,6 +398,7 @@ func sanitizePathComponent(_ string: String) -> String {
 /// the record mode calls for it.
 ///
 /// This must be called within a `withSnapshotTesting` scope.
+@MainActor
 private func compareSnapshot<S: SnapshotStrategy>(
   of diffable: S.Format,
   as strategy: S,
@@ -429,7 +430,7 @@ private func compareSnapshot<S: SnapshotStrategy>(
     #if !os(Android) && !os(Linux) && !os(Windows)
       if ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS") {
         if isSwiftTesting {
-          #if canImport(Testing) && compiler(>=6.2)
+          #if canImport(Testing)
             recordSwiftTestingAttachment(
               writeToDisk ? try Data(contentsOf: snapshotFileUrl) : snapshotData,
               named: snapshotFileUrl.lastPathComponent,
@@ -529,7 +530,7 @@ private func compareSnapshot<S: SnapshotStrategy>(
     #if !os(Linux) && !os(Android) && !os(Windows)
       if ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS") {
         if isSwiftTesting {
-          #if canImport(Testing) && compiler(>=6.2)
+          #if canImport(Testing)
             for attachment in difference.attachments {
               recordSwiftTestingAttachment(
                 attachment.data,
@@ -646,21 +647,14 @@ private final class CleanCounterBetweenTestCases: NSObject, XCTestObservation {
 // MARK: - Attachments
 
 #if !os(Android) && !os(Linux) && !os(Windows)
-  import CoreServices
+  import UniformTypeIdentifiers
 
   func uniformTypeIdentifier(fromExtension pathExtension: String) -> String? {
-    // This can be much cleaner in macOS 11+ using UTType
-    let unmanagedString = UTTypeCreatePreferredIdentifierForTag(
-      kUTTagClassFilenameExtension as CFString,
-      pathExtension as CFString,
-      nil
-    )
-
-    return unmanagedString?.takeRetainedValue() as String?
+    UTType(filenameExtension: pathExtension)?.identifier
   }
 #endif
 
-#if canImport(Testing) && compiler(>=6.2)
+#if canImport(Testing)
   private func recordSwiftTestingAttachment(
     _ data: Data,
     named name: String,

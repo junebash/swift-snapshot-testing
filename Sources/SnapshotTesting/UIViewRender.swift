@@ -174,7 +174,11 @@
 
   @MainActor
   private func getKeyWindow() -> UIWindow? {
-    UIApplication.sharedIfAvailable?.windows.first { $0.isKeyWindow }
+    UIApplication.sharedIfAvailable?.connectedScenes
+      .lazy
+      .compactMap { $0 as? UIWindowScene }
+      .compactMap(\.keyWindow)
+      .first
   }
 
   /// Parents the controller (re-rooting under a fresh container when needed), applies traits, and

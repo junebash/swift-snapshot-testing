@@ -189,7 +189,7 @@ public struct InlineSnapshotSyntaxDescriptor: Hashable, Sendable {
     try testSourceCache.withLock { cache in
       if let cached = cache[file] { return cached }
       let filePath = "\(file.path)"
-      let source = try String(contentsOfFile: filePath)
+      let source = try String(contentsOfFile: filePath, encoding: .utf8)
       let sourceFile = Parser.parse(source: source)
       let sourceLocationConverter = SourceLocationConverter(fileName: filePath, tree: sourceFile)
       let testSource = TestSource(
