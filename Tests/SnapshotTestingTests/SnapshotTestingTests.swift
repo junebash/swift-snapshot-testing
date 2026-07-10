@@ -1028,88 +1028,52 @@ final class SnapshotTestingTests: BaseTestCase {
   @MainActor
   func testUIViewControllerLifeCycle() async {
     #if os(iOS)
+      // Every lifecycle callback the engine drives is synchronous on the main actor, so by the
+      // time each assertion returns the counts are final — no expectations needed.
       class ViewController: UIViewController {
-        let viewDidLoadExpectation: XCTestExpectation
-        let viewWillAppearExpectation: XCTestExpectation
-        let viewDidAppearExpectation: XCTestExpectation
-        let viewWillDisappearExpectation: XCTestExpectation
-        let viewDidDisappearExpectation: XCTestExpectation
-        init(
-          viewDidLoadExpectation: XCTestExpectation,
-          viewWillAppearExpectation: XCTestExpectation,
-          viewDidAppearExpectation: XCTestExpectation,
-          viewWillDisappearExpectation: XCTestExpectation,
-          viewDidDisappearExpectation: XCTestExpectation
-        ) {
-          self.viewDidLoadExpectation = viewDidLoadExpectation
-          self.viewWillAppearExpectation = viewWillAppearExpectation
-          self.viewDidAppearExpectation = viewDidAppearExpectation
-          self.viewWillDisappearExpectation = viewWillDisappearExpectation
-          self.viewDidDisappearExpectation = viewDidDisappearExpectation
-          super.init(nibName: nil, bundle: nil)
-        }
-        required init?(coder: NSCoder) {
-          fatalError("init(coder:) has not been implemented")
-        }
+        var viewDidLoadCount = 0
+        var viewWillAppearCount = 0
+        var viewDidAppearCount = 0
+        var viewWillDisappearCount = 0
+        var viewDidDisappearCount = 0
         override func viewDidLoad() {
           super.viewDidLoad()
-          viewDidLoadExpectation.fulfill()
+          viewDidLoadCount += 1
         }
         override func viewWillAppear(_ animated: Bool) {
           super.viewWillAppear(animated)
-          viewWillAppearExpectation.fulfill()
+          viewWillAppearCount += 1
         }
         override func viewDidAppear(_ animated: Bool) {
           super.viewDidAppear(animated)
-          viewDidAppearExpectation.fulfill()
+          viewDidAppearCount += 1
         }
         override func viewWillDisappear(_ animated: Bool) {
           super.viewWillDisappear(animated)
-          viewWillDisappearExpectation.fulfill()
+          viewWillDisappearCount += 1
         }
         override func viewDidDisappear(_ animated: Bool) {
           super.viewDidDisappear(animated)
-          viewDidDisappearExpectation.fulfill()
+          viewDidDisappearCount += 1
         }
       }
 
-      let viewDidLoadExpectation = expectation(description: "viewDidLoad")
-      let viewWillAppearExpectation = expectation(description: "viewWillAppear")
-      let viewDidAppearExpectation = expectation(description: "viewDidAppear")
-      let viewWillDisappearExpectation = expectation(description: "viewWillDisappear")
-      let viewDidDisappearExpectation = expectation(description: "viewDidDisappear")
-      // Per assertion, appearance fires twice (window attach + the engine's explicit appearance
-      // transition) but `viewWillDisappear` only once: the engine detaches the child between
-      // `beginAppearanceTransition(false)` and `endAppearanceTransition`, and modern UIKit does
-      // not forward the `did` callback to an already-detached child at all — so
-      // `viewDidDisappear` is never delivered. The original 4/4 counts encoded older UIKit
-      // forwarding; the legacy engine fails identically on modern iOS.
-      viewWillAppearExpectation.expectedFulfillmentCount = 4
-      viewDidAppearExpectation.expectedFulfillmentCount = 4
-      viewWillDisappearExpectation.expectedFulfillmentCount = 2
-      viewDidDisappearExpectation.isInverted = true
-
-      let viewController = ViewController(
-        viewDidLoadExpectation: viewDidLoadExpectation,
-        viewWillAppearExpectation: viewWillAppearExpectation,
-        viewDidAppearExpectation: viewDidAppearExpectation,
-        viewWillDisappearExpectation: viewWillDisappearExpectation,
-        viewDidDisappearExpectation: viewDidDisappearExpectation
-      )
+      let viewController = ViewController()
 
       await assertSnapshot(of: viewController, as: .image)
       await assertSnapshot(of: viewController, as: .image)
 
-      // Not `enforceOrder`: completion order tracks when each expectation reaches its count, and
-      // with the differing counts above that no longer matches declaration order.
-      await fulfillment(
-        of: [
-          viewDidLoadExpectation,
-          viewWillAppearExpectation,
-          viewDidAppearExpectation,
-          viewWillDisappearExpectation,
-          viewDidDisappearExpectation,
-        ], timeout: 1.0)
+      // Per assertion, each callback fires twice: appearance from the window attach plus the
+      // engine's explicit transition, disappearance from the explicit transition plus the view's
+      // removal from the visible window. Because teardown completes its transition while the
+      // child is still parented, disappearance mirrors appearance — the upstream 4/4/4/4
+      // contract, which the legacy engine broke on modern iOS by detaching the child
+      // mid-transition (dropping `viewDidDisappear` entirely).
+      XCTAssertEqual(viewController.viewDidLoadCount, 1, "viewDidLoad")
+      XCTAssertEqual(viewController.viewWillAppearCount, 4, "viewWillAppear")
+      XCTAssertEqual(viewController.viewDidAppearCount, 4, "viewDidAppear")
+      XCTAssertEqual(viewController.viewWillDisappearCount, 4, "viewWillDisappear")
+      XCTAssertEqual(viewController.viewDidDisappearCount, 4, "viewDidDisappear")
     #endif
   }
 

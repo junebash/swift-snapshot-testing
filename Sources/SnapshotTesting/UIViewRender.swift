@@ -230,12 +230,14 @@
     viewController.view.layoutIfNeeded()
 
     return {
+      // Finish the disappearance transition while the controller is still parented so
+      // `viewDidDisappear` reaches it; the legacy engine detached first, silently dropping it.
       rootViewController.beginAppearanceTransition(false, animated: false)
+      rootViewController.endAppearanceTransition()
       viewController.willMove(toParent: nil)
       viewController.view.removeFromSuperview()
       viewController.removeFromParent()
       viewController.didMove(toParent: nil)
-      rootViewController.endAppearanceTransition()
       window.rootViewController = nil
     }
   }
