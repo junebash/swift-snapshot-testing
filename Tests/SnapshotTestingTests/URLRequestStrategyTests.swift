@@ -1,6 +1,10 @@
 import Foundation
 import Testing
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 @testable import SnapshotTesting
 
 /// Byte-identity checks against the legacy suite's recorded references for `testURLRequest`. These

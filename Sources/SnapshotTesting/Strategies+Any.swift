@@ -148,7 +148,7 @@ extension NSObject: AnySnapshotStringConvertible {
   #if canImport(ObjectiveC)
     @objc open var snapshotDescription: String { purgePointers(self.debugDescription) }
   #else
-    open var snapshotDescription: String { purgePointers(self.debugDescription) }
+    public var snapshotDescription: String { purgePointers(self.debugDescription) }
   #endif
 }
 
